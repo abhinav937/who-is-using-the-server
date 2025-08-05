@@ -26,6 +26,9 @@ export default async function handler(req, res) {
       case 'heartbeat':
         await handleHeartbeat(req, res);
         break;
+      case 'check_logouts':
+        await handleCheckLogouts(req, res);
+        break;
       default:
         // Default to heartbeat for backward compatibility
         await handleHeartbeat(req, res);
@@ -34,6 +37,8 @@ export default async function handler(req, res) {
     // Check if it's a test request
     if (req.query.test === 'teams') {
       await handleTeamsTest(req, res);
+    } else if (req.query.action === 'check_logouts') {
+      await handleCheckLogouts(req, res);
     } else {
       await handleStatus(req, res);
     }
@@ -221,9 +226,6 @@ async function handleHeartbeat(req, res) {
     console.log(`Heartbeat received: ${username} on ${serverId} at ${new Date().toLocaleString()}`);
 
     try {
-      // Check for logout detection first
-      await checkForLogouts(redis);
-
       // Check if this is a new session BEFORE updating
       const existingSession = await redis.get(sessionKey);
       const isNewSession = !existingSession;
@@ -291,9 +293,6 @@ async function handleStatus(req, res) {
     const redis = await getRedisClient();
     
     try {
-      // Check for logouts
-      await checkForLogouts(redis);
-
       if (serverId) {
         const serverKey = `server:${serverId}`;
         const sessionKeys = await redis.sMembers(serverKey);
@@ -337,7 +336,7 @@ async function handleStatus(req, res) {
 
 async function checkForLogouts(redis) {
   const now = Date.now();
-  const timeout = 30 * 1000; // 30 seconds timeout for aggressive timing
+  const timeout = 60 * 1000; // 60 seconds timeout (increased from 30s to reduce false positives)
 
   console.log(`Checking for logouts at ${new Date().toLocaleString()}`);
 
@@ -356,11 +355,10 @@ async function checkForLogouts(redis) {
         if (sessionData) {
           const session = JSON.parse(sessionData);
           const timeSinceLastHeartbeat = now - session.lastHeartbeat;
-          console.log(`Session ${session.username} on ${session.serverId}: ${timeSinceLastHeartbeat}ms since last heartbeat`);
           
           if (timeSinceLastHeartbeat > timeout) {
             // Session timed out - user logged off
-            console.log(`Session timed out: ${session.username} on ${session.serverId}`);
+            console.log(`Session timed out: ${session.username} on ${session.serverId} (${timeSinceLastHeartbeat}ms since last heartbeat)`);
             loggedOffUsers.push(session);
             serverIds.add(session.serverId);
             
@@ -408,6 +406,34 @@ async function checkForLogouts(redis) {
   }
 }
 
+async function handleCheckLogouts(req, res) {
+  try {
+    console.log('Manual logout check requested at', new Date().toLocaleString());
+    
+    const redis = await getRedisClient();
+    
+    try {
+      await checkForLogouts(redis);
+      
+      res.status(200).json({ 
+        success: true, 
+        message: 'Logout check completed',
+        timestamp: new Date().toISOString()
+      });
+      
+    } catch (redisError) {
+      console.error('Redis error in logout check:', redisError);
+      res.status(500).json({ error: 'Redis error during logout check' });
+    } finally {
+      await redis.disconnect();
+    }
+    
+  } catch (error) {
+    console.error('Logout check error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
 async function handleTeamsTest(req, res) {
   try {
     console.log('Testing Teams notification...');
@@ -446,22 +472,55 @@ function generateSessionId() {
 }
 
 function createLoginMessage(username, serverId) {
+  const chicagoTime = new Date().toLocaleString('en-US', { 
+    timeZone: 'America/Chicago',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  });
+  
   return {
-    "text": `[LOGIN] ${username} logged into ${serverId} at ${new Date().toLocaleString()}`,
+    "text": `[LOGIN] ${username} logged into ${serverId} at ${chicagoTime} CDT`,
     "title": "Server Monitor - User Login"
   };
 }
 
 function createLogoutMessage(username, serverId, reason = 'manual') {
+  const chicagoTime = new Date().toLocaleString('en-US', { 
+    timeZone: 'America/Chicago',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  });
+  
   return {
-    "text": `[LOGOUT] ${username} logged off from ${serverId} at ${new Date().toLocaleString()} (${reason})`,
+    "text": `[LOGOUT] ${username} logged off from ${serverId} at ${chicagoTime} CDT (${reason})`,
     "title": "Server Monitor - User Logout"
   };
 }
 
 function createServerFreeMessage(serverId) {
+  const chicagoTime = new Date().toLocaleString('en-US', { 
+    timeZone: 'America/Chicago',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  });
+  
   return {
-    "text": `[FREE] Server ${serverId} is now FREE at ${new Date().toLocaleString()}`,
+    "text": `[FREE] Server ${serverId} is now FREE at ${chicagoTime} CDT`,
     "title": "Server Monitor - Server Available"
   };
 }

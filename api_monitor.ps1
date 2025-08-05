@@ -54,6 +54,19 @@ function Get-SystemInfo {
     }
 }
 
+function Get-ChicagoTime {
+    try {
+        # Get Chicago time using .NET
+        $chicagoZone = [System.TimeZoneInfo]::FindSystemTimeZoneById("Central Standard Time")
+        $utcNow = [System.DateTime]::UtcNow
+        $chicagoTime = [System.TimeZoneInfo]::ConvertTimeFromUtc($utcNow, $chicagoZone)
+        return $chicagoTime.ToString("yyyy-MM-dd HH:mm:ss")
+    } catch {
+        # Fallback to local time if Chicago timezone not available
+        return Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    }
+}
+
 function Send-Login {
     try {
         $username = $env:USERNAME
@@ -75,7 +88,7 @@ function Send-Login {
         
         $response = Invoke-RestMethod -Uri $ApiUrl -Method POST -Body $jsonData -ContentType "application/json" -TimeoutSec 10
         
-        $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+        $timestamp = Get-ChicagoTime
         Write-Host "[$timestamp] Login sent: $username on $computerName" -ForegroundColor Green
         
         if ($response.success) {
@@ -86,7 +99,7 @@ function Send-Login {
         }
         
     } catch {
-        $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+        $timestamp = Get-ChicagoTime
         Write-Host "[$timestamp] [ERROR] Login failed: $($_.Exception.Message)" -ForegroundColor Red
         $script:RetryCount++
         
@@ -119,7 +132,7 @@ function Send-Logout {
         
         $response = Invoke-RestMethod -Uri $ApiUrl -Method POST -Body $jsonData -ContentType "application/json" -TimeoutSec 10
         
-        $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+        $timestamp = Get-ChicagoTime
         Write-Host "[$timestamp] Logout sent: $username on $computerName" -ForegroundColor Yellow
         
         if ($response.success) {
@@ -131,7 +144,7 @@ function Send-Logout {
         }
         
     } catch {
-        $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+        $timestamp = Get-ChicagoTime
         Write-Host "[$timestamp] [ERROR] Logout failed: $($_.Exception.Message)" -ForegroundColor Red
     }
 }
@@ -157,7 +170,7 @@ function Send-Heartbeat {
         
         $response = Invoke-RestMethod -Uri $ApiUrl -Method POST -Body $jsonData -ContentType "application/json" -TimeoutSec 10
         
-        $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+        $timestamp = Get-ChicagoTime
         Write-Host "[$timestamp] Heartbeat: $username on $computerName (CPU: $($systemInfo.cpu)%, Memory: $($systemInfo.memory)MB)" -ForegroundColor White
         
         if ($response.success) {
@@ -167,7 +180,7 @@ function Send-Heartbeat {
         }
         
     } catch {
-        $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+        $timestamp = Get-ChicagoTime
         Write-Host "[$timestamp] [ERROR] Heartbeat failed: $($_.Exception.Message)" -ForegroundColor Red
         $script:RetryCount++
         
@@ -206,7 +219,7 @@ try {
             Start-Sleep -Seconds $Interval
             
         } catch {
-            $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+            $timestamp = Get-ChicagoTime
             Write-Host "[$timestamp] [ERROR] Main loop error: $($_.Exception.Message)" -ForegroundColor Red
             
             # Attempt logout on critical errors

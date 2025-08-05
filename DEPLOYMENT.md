@@ -73,15 +73,49 @@ This guide will help you deploy the server monitoring API to Vercel with persist
 
 ## Step 5: Install Local Monitor
 
-1. **Run the installation:**
-   ```bash
-   install_api_monitor.bat
+### Option 1: One-Click Install (Recommended)
+
+**For Windows users without admin access:**
+
+1. **Double-click `install.bat`** or run:
+   ```cmd
+   install.bat
    ```
 
-2. **Test the monitor:**
-   ```bash
-   run_api_monitor.bat
+2. **Or use PowerShell version:**
+   ```powershell
+   .\install.ps1
    ```
+
+### Option 2: Manual Installation
+
+1. **Run the monitor directly:**
+   ```cmd
+   run_monitor.bat
+   ```
+
+2. **Or run PowerShell script directly:**
+   ```powershell
+   .\api_monitor.ps1
+   ```
+
+### What Gets Installed
+
+- **Startup Script**: Automatically starts monitoring on login
+- **Desktop Shortcut**: "Server Monitor" shortcut for manual start
+- **Configuration**: `config.env` file with default settings
+
+### Uninstall
+
+**One-click uninstall:**
+```cmd
+uninstall.bat
+```
+
+**Or PowerShell version:**
+```powershell
+.\uninstall.ps1
+```
 
 ## How It Works
 
@@ -153,9 +187,14 @@ The Vercel API sends Teams notifications for:
 │   └── index.js          # Vercel API (uses KV storage)
 ├── vercel.json           # Vercel config
 ├── package.json          # Dependencies (includes @vercel/kv)
-├── api_monitor.ps1       # Local monitor script (sends heartbeats only)
-├── run_api_monitor.bat   # Run script
-├── install_api_monitor.bat # Install script
+├── api_monitor.ps1       # Local monitor script
+├── run_monitor.bat       # Run script
+├── install.bat           # One-click install (batch)
+├── install.ps1           # One-click install (PowerShell)
+├── uninstall.bat         # One-click uninstall (batch)
+├── uninstall.ps1         # One-click uninstall (PowerShell)
+├── check_logouts.bat     # Manual logout check (batch)
+├── check_logouts.ps1     # Manual logout check (PowerShell)
 ├── config.env            # Local configuration
 └── DEPLOYMENT.md         # This guide
 ``` 
