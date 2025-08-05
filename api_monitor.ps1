@@ -179,26 +179,8 @@ function Send-Heartbeat {
     }
 }
 
-# Set up cleanup handlers for graceful shutdown
-function Register-CleanupHandlers {
-    # PowerShell exit event
-    $exitScript = {
-        Write-Host ""
-        Write-Host "PowerShell exiting, sending logout..." -ForegroundColor Yellow
-        Send-Logout
-        Write-Host "Server Monitor stopped." -ForegroundColor Red
-    }
-    
-    # Register event handlers
-    Register-EngineEvent PowerShell.Exiting -Action $exitScript
-    Register-EngineEvent ([System.Console])::CancelKeyPress -Action $exitScript
-}
-
 # Main execution
 try {
-    # Register cleanup handlers
-    Register-CleanupHandlers
-    
     # Initial login
     if ($Mode -eq "auto" -or $Mode -eq "login-only") {
         Write-Host "Performing initial login..." -ForegroundColor Cyan
