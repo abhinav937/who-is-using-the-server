@@ -2,7 +2,7 @@
 
 A comprehensive server monitoring system that tracks user sessions, sends notifications, and provides real-time status monitoring through a Vercel-hosted API with Redis storage.
 
-## 🚀 Overview
+## Overview
 
 This system monitors server usage by tracking user sessions through heartbeat signals. It automatically detects when users log in/out and sends notifications to Microsoft Teams. The system consists of:
 
@@ -11,7 +11,7 @@ This system monitors server usage by tracking user sessions through heartbeat si
 - **PowerShell Scripts**: Client-side monitoring and automation
 - **Batch Scripts**: Windows installation and management utilities
 
-## 📋 Features
+## Features
 
 - **Real-time Session Tracking**: Monitor who's using the server
 - **Automatic Logout Detection**: Detect abrupt disconnections after 30 seconds
@@ -20,7 +20,7 @@ This system monitors server usage by tracking user sessions through heartbeat si
 - **Easy Installation**: One-click setup scripts for Windows
 - **Cross-platform API**: Works with any system that can make HTTP requests
 
-## 🛠️ Setup Instructions
+## Setup Instructions
 
 ### Prerequisites
 
@@ -78,7 +78,7 @@ This system monitors server usage by tracking user sessions through heartbeat si
    - Configure automatic monitoring on system startup
    - Set up logging and session management
 
-## 📖 Usage
+## Usage
 
 ### Automatic Monitoring
 
@@ -114,7 +114,7 @@ run_monitor.bat
 uninstall.bat
 ```
 
-## 🔧 API Endpoints
+## API Endpoints
 
 ### POST /api
 
@@ -140,7 +140,7 @@ uninstall.bat
 - **Test Teams**: `GET /api?test=teams` - Test Teams webhook
 - **Check Logouts**: `GET /api?action=check_logouts` - Manual logout check
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 server-monitor-api/
@@ -161,7 +161,7 @@ server-monitor-api/
 └── README.md                # This file
 ```
 
-## ⚙️ Configuration
+## Configuration
 
 ### Environment Variables
 
@@ -184,13 +184,13 @@ server-monitor-api/
 3. Create a new webhook and copy the URL
 4. Add the URL to your Vercel environment variables as `TEAMS_WEBHOOK_URL`
 
-## 🔍 Monitoring & Logs
+## Monitoring & Logs
 
 - **API Logs**: View in Vercel Dashboard → Functions tab
 - **Client Logs**: Check `api_monitor.log` in the script directory
 - **Session Data**: Stored in Redis/Vercel KV with automatic expiration
 
-## 🚨 Troubleshooting
+## Troubleshooting
 
 ### Common Issues
 
@@ -227,7 +227,7 @@ curl -X POST https://your-app.vercel.app/api \
   -d '{"action":"login","username":"test","computer":"TEST-PC"}'
 ```
 
-## 🤝 Contributing
+## Contributing
 
 1. Fork the repository
 2. Create a feature branch
@@ -235,11 +235,11 @@ curl -X POST https://your-app.vercel.app/api \
 4. Test thoroughly
 5. Submit a pull request
 
-## 📝 License
+## License
 
 This project is open source and available under the [MIT License](LICENSE).
 
-## 🆘 Support
+## Support
 
 For issues and questions:
 1. Check the troubleshooting section above
