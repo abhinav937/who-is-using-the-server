@@ -58,12 +58,12 @@ function Send-Heartbeat {
         Write-Host "[$timestamp] Heartbeat sent: $username on $computerName (CPU: $($heartbeatData.cpu)%, Memory: $($heartbeatData.memory)MB)"
         
         if ($response.success) {
-            Write-Host "  ✓ API response: $($response.message) (Sessions: $($response.sessionCount))"
+            Write-Host "  [OK] API response: $($response.message) (Sessions: $($response.sessionCount))"
         }
         
     } catch {
         $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-        Write-Host "[$timestamp] ❌ Error sending heartbeat: $($_.Exception.Message)" -ForegroundColor Red
+        Write-Host "[$timestamp] [ERROR] Error sending heartbeat: $($_.Exception.Message)" -ForegroundColor Red
         
         # Log error to file if LOG_FILE is set
         if ($LOG_FILE) {
