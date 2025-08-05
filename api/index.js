@@ -88,8 +88,10 @@ async function handleLogin(req, res) {
           lastHeartbeat: now,
           lastLogin: now,
           sessionId: sessionId || session.sessionId,
-          status: 'active'
-        }), { EX: 120 }); // 2 minutes expiry for consistency
+          status: 'active',
+          heartbeatCount: (session.heartbeatCount || 0) + 1,
+          lastUpdate: new Date().toISOString()
+        }), { EX: 90 }); // 90 seconds expiry for consistency
         
         res.status(200).json({ 
           success: true, 
@@ -108,7 +110,7 @@ async function handleLogin(req, res) {
           status: 'active'
         };
 
-        await redis.set(sessionKey, JSON.stringify(newSession), { EX: 120 });
+        await redis.set(sessionKey, JSON.stringify(newSession), { EX: 90 });
         await redis.sAdd(serverKey, sessionKey);
 
         // Send login notification
@@ -146,6 +148,7 @@ async function handleLogout(req, res) {
     const redis = await getRedisClient();
     const sessionKey = `session:${serverId}-${username}`;
     const serverKey = `server:${serverId}`;
+    const activeKey = `active:${serverId}-${username}`;
 
     console.log(`Logout request received: ${username} on ${serverId} (reason: ${reason || 'manual'}) at ${new Date().toLocaleString()}`);
 
@@ -162,6 +165,7 @@ async function handleLogout(req, res) {
         
         // Remove session from storage
         await redis.del(sessionKey);
+        await redis.del(activeKey);
         await redis.sRem(serverKey, sessionKey);
         
         // Check if server is now free
@@ -222,6 +226,7 @@ async function handleHeartbeat(req, res) {
     const now = Date.now();
     const sessionKey = `session:${serverId}-${username}`;
     const serverKey = `server:${serverId}`;
+    const activeKey = `active:${serverId}-${username}`;
 
     console.log(`Heartbeat received: ${username} on ${serverId} at ${new Date().toLocaleString()}`);
 
@@ -232,8 +237,8 @@ async function handleHeartbeat(req, res) {
       
       console.log(`Session check for ${username} on ${serverId}: existing=${!!existingSession}, isNew=${isNewSession}`);
 
-      // Update heartbeat with robust expiry
-      await redis.set(sessionKey, JSON.stringify({
+      // Update heartbeat with robust expiry and more detailed tracking
+      const sessionData = {
         serverId,
         username,
         sessionId: sessionId || (existingSession ? JSON.parse(existingSession).sessionId : generateSessionId()),
@@ -241,8 +246,20 @@ async function handleHeartbeat(req, res) {
         lastHeartbeat: now,
         status: status || 'active',
         cpu: cpu,
-        memory: memory
-      }), { EX: 120 }); // 2 minutes expiry for faster detection
+        memory: memory,
+        heartbeatCount: existingSession ? (JSON.parse(existingSession).heartbeatCount || 0) + 1 : 1,
+        lastUpdate: new Date().toISOString()
+      };
+      
+      await redis.set(sessionKey, JSON.stringify(sessionData), { EX: 90 }); // 90 seconds expiry for faster detection
+      
+      // Also store a separate active session marker for better tracking
+      await redis.set(activeKey, JSON.stringify({
+        username,
+        serverId,
+        lastHeartbeat: now,
+        status: 'active'
+      }), { EX: 90 });
 
       // Add to server's active sessions
       await redis.sAdd(serverKey, sessionKey);
@@ -336,42 +353,71 @@ async function handleStatus(req, res) {
 
 async function checkForLogouts(redis) {
   const now = Date.now();
-  const timeout = 45 * 1000; // Reduced to 45 seconds for faster detection of abrupt disconnections
+  const timeout = 30 * 1000; // 30 seconds timeout for faster detection
 
   console.log(`Checking for logouts at ${new Date().toLocaleString()}`);
 
   try {
-    // Get all server keys
-    const serverKeys = await redis.keys('server:*');
+    // Get all active session markers first
+    const activeKeys = await redis.keys('active:*');
     let loggedOffUsers = [];
     let serverIds = new Set();
 
+    // Check active sessions for timeouts
+    for (const activeKey of activeKeys) {
+      const activeData = await redis.get(activeKey);
+      
+      if (activeData) {
+        const active = JSON.parse(activeData);
+        const timeSinceLastHeartbeat = now - active.lastHeartbeat;
+        
+        console.log(`Checking active session: ${active.username} on ${active.serverId} - ${timeSinceLastHeartbeat}ms since last heartbeat`);
+        
+        if (timeSinceLastHeartbeat > timeout) {
+          // Session timed out - user logged off
+          console.log(`Active session timed out: ${active.username} on ${active.serverId} (${timeSinceLastHeartbeat}ms since last heartbeat)`);
+          
+          // Get the full session data
+          const sessionKey = `session:${active.serverId}-${active.username}`;
+          const sessionData = await redis.get(sessionKey);
+          
+          if (sessionData) {
+            const session = JSON.parse(sessionData);
+            loggedOffUsers.push(session);
+            serverIds.add(session.serverId);
+            
+            // Remove session from storage
+            await redis.del(sessionKey);
+            await redis.del(activeKey);
+            await redis.sRem(`server:${active.serverId}`, sessionKey);
+            
+            // Send Teams notification for logout
+            sendTeamsNotification(createLogoutMessage(active.username, active.serverId, 'timeout'));
+            console.log(`Logout notification sent for: ${active.username} on ${active.serverId}`);
+          } else {
+            // Clean up orphaned active key
+            await redis.del(activeKey);
+            console.log(`Cleaned up orphaned active key: ${activeKey}`);
+          }
+        }
+      } else {
+        // Clean up orphaned active key
+        await redis.del(activeKey);
+        console.log(`Cleaned up orphaned active key: ${activeKey}`);
+      }
+    }
+
+    // Also check server sessions for consistency
+    const serverKeys = await redis.keys('server:*');
     for (const serverKey of serverKeys) {
       const sessionKeys = await redis.sMembers(serverKey);
       
       for (const sessionKey of sessionKeys) {
         const sessionData = await redis.get(sessionKey);
         
-        if (sessionData) {
-          const session = JSON.parse(sessionData);
-          const timeSinceLastHeartbeat = now - session.lastHeartbeat;
-          
-          if (timeSinceLastHeartbeat > timeout) {
-            // Session timed out - user logged off
-            console.log(`Session timed out: ${session.username} on ${session.serverId} (${timeSinceLastHeartbeat}ms since last heartbeat)`);
-            loggedOffUsers.push(session);
-            serverIds.add(session.serverId);
-            
-            // Remove session from storage
-            await redis.del(sessionKey);
-            await redis.sRem(serverKey, sessionKey);
-            
-            // Send Teams notification for logout
-            sendTeamsNotification(createLogoutMessage(session.username, session.serverId, 'timeout'));
-            console.log(`Logout notification sent for: ${session.username} on ${session.serverId}`);
-          }
-        } else {
+        if (!sessionData) {
           // Session doesn't exist, remove from server
+          console.log(`Removing orphaned session key: ${sessionKey}`);
           await redis.sRem(serverKey, sessionKey);
         }
       }
@@ -434,32 +480,8 @@ async function handleCheckLogouts(req, res) {
   }
 }
 
-// Auto-check for logouts every 30 seconds
-let logoutCheckInterval = null;
-
-function startAutoLogoutCheck() {
-  if (logoutCheckInterval) {
-    clearInterval(logoutCheckInterval);
-  }
-  
-  logoutCheckInterval = setInterval(async () => {
-    try {
-      const redis = await getRedisClient();
-      await checkForLogouts(redis);
-      await redis.disconnect();
-    } catch (error) {
-      console.error('Auto logout check error:', error);
-    }
-  }, 30000); // Check every 30 seconds
-  
-  console.log('Auto logout check started (every 30 seconds)');
-}
-
-// Start the auto logout check when the module loads
-if (typeof window === 'undefined') {
-  // Only run on server side
-  startAutoLogoutCheck();
-}
+// Note: Auto logout check removed because Vercel serverless functions don't support background processes
+// The client-side script now triggers logout checks every 3 heartbeats instead
 
 async function handleTeamsTest(req, res) {
   try {

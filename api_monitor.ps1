@@ -37,6 +37,7 @@ $script:IsLoggedIn = $false
 $script:LastHeartbeat = 0
 $script:RetryCount = 0
 $script:MaxRetries = 3
+$script:HeartbeatCount = 0
 
 function Get-SystemInfo {
     try {
@@ -177,6 +178,7 @@ function Send-Heartbeat {
             Write-Host "  [OK] API response: $($response.message) (Sessions: $($response.sessionCount))" -ForegroundColor Green
             $script:LastHeartbeat = Get-Date
             $script:RetryCount = 0
+            $script:HeartbeatCount++
         }
         
     } catch {
@@ -228,6 +230,9 @@ try {
             if ($Mode -eq "auto" -or $Mode -eq "heartbeat-only") {
                 Send-Heartbeat
             }
+            
+            # Note: Logout checks are now handled by external service (GitHub Actions)
+            # This ensures detection works even when terminal is closed abruptly
             
             # Wait for next interval
             Start-Sleep -Seconds $Interval

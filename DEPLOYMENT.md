@@ -71,7 +71,28 @@ This guide will help you deploy the server monitoring API to Vercel with persist
      -d '{"serverId":"test","username":"testuser","cpu":25,"memory":8192,"status":"active","timestamp":1234567890}'
    ```
 
-## Step 5: Install Local Monitor
+## Step 5: Set Up GitHub Actions (Recommended)
+
+**For automatic logout detection when terminal is closed abruptly:**
+
+1. **Push to GitHub:**
+   ```bash
+   git add .
+   git commit -m "Add GitHub Actions logout checker"
+   git push origin main
+   ```
+
+2. **Enable GitHub Actions:**
+   - Go to your GitHub repository
+   - Go to Settings → Actions → General
+   - Enable "Allow all actions and reusable workflows"
+
+3. **Verify Workflow:**
+   - Go to Actions tab
+   - You should see "Logout Checker" running every minute
+   - This ensures detection even when terminal is closed
+
+## Step 6: Install Local Monitor
 
 ### Option 1: One-Click Install (Recommended)
 

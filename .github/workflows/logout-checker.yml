@@ -1,0 +1,28 @@
+name: Logout Checker
+
+on:
+  schedule:
+    # Run every 30 seconds (minimum GitHub Actions allows)
+    - cron: '*/1 * * * *'
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  check-logouts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    
+    steps:
+    - name: Check for logouts
+      run: |
+        echo "Starting logout check at $(date)"
+        response=$(curl -s -w "%{http_code}" "https://who-is-using-the-server.vercel.app/api?action=check_logouts")
+        http_code="${response: -3}"
+        body="${response%???}"
+        
+        if [ "$http_code" = "200" ]; then
+          echo "✅ Logout check completed successfully at $(date)"
+          echo "Response: $body"
+        else
+          echo "❌ Logout check failed with HTTP $http_code at $(date)"
+          echo "Response: $body"
+        fi 
