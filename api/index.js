@@ -64,7 +64,7 @@ async function handleHeartbeat(req, res) {
       }), { EX: 300 }); // Expire after 5 minutes
 
       // Add to server's active sessions
-      await redis.sadd(serverKey, sessionKey);
+      await redis.sAdd(serverKey, sessionKey);
 
       // Check if this is a new session
       const existingSession = await redis.get(sessionKey);
@@ -77,7 +77,7 @@ async function handleHeartbeat(req, res) {
       }
 
       // Get session count
-      const sessionCount = await redis.scard(serverKey);
+      const sessionCount = await redis.sCard(serverKey);
       console.log(`Current sessions: ${sessionCount}`);
 
       res.status(200).json({ 
@@ -118,7 +118,7 @@ async function handleStatus(req, res) {
 
       if (serverId) {
         const serverKey = `server:${serverId}`;
-        const sessionKeys = await redis.smembers(serverKey);
+        const sessionKeys = await redis.sMembers(serverKey);
         const activeSessions = [];
 
         for (const sessionKey of sessionKeys) {
@@ -170,7 +170,7 @@ async function checkForLogouts(redis) {
     let serverIds = new Set();
 
     for (const serverKey of serverKeys) {
-      const sessionKeys = await redis.smembers(serverKey);
+      const sessionKeys = await redis.sMembers(serverKey);
       
       for (const sessionKey of sessionKeys) {
         const sessionData = await redis.get(sessionKey);
@@ -188,14 +188,14 @@ async function checkForLogouts(redis) {
             
             // Remove session from storage
             await redis.del(sessionKey);
-            await redis.srem(serverKey, sessionKey);
+            await redis.sRem(serverKey, sessionKey);
             
             // Send Teams notification for logout
             sendTeamsNotification(createLogoutMessage(session.username, session.serverId));
           }
         } else {
           // Session doesn't exist, remove from server
-          await redis.srem(serverKey, sessionKey);
+          await redis.sRem(serverKey, sessionKey);
         }
       }
     }
@@ -205,7 +205,7 @@ async function checkForLogouts(redis) {
     // Check if any servers are now free
     for (const serverId of serverIds) {
       const serverKey = `server:${serverId}`;
-      const sessionKeys = await redis.smembers(serverKey);
+      const sessionKeys = await redis.sMembers(serverKey);
       let serverHasUsers = false;
 
       for (const sessionKey of sessionKeys) {
@@ -233,10 +233,10 @@ function createLoginMessage(username, serverId) {
     "@type": "MessageCard",
     "@context": "http://schema.org/extensions",
     "themeColor": "00FF00",
-    "summary": `🟢 ${username} logged into ${serverId}`,
+    "summary": `[LOGIN] ${username} logged into ${serverId}`,
     "sections": [
       {
-        "activityTitle": `🟢 ${username} logged into ${serverId}`,
+        "activityTitle": `[LOGIN] ${username} logged into ${serverId}`,
         "activitySubtitle": `${new Date().toLocaleString()}`,
         "text": `User ${username} is now using server ${serverId}`
       }
@@ -249,10 +249,10 @@ function createLogoutMessage(username, serverId) {
     "@type": "MessageCard",
     "@context": "http://schema.org/extensions",
     "themeColor": "FF0000",
-    "summary": `🔴 ${username} logged off from ${serverId}`,
+    "summary": `[LOGOUT] ${username} logged off from ${serverId}`,
     "sections": [
       {
-        "activityTitle": `🔴 ${username} logged off from ${serverId}`,
+        "activityTitle": `[LOGOUT] ${username} logged off from ${serverId}`,
         "activitySubtitle": `${new Date().toLocaleString()}`,
         "text": `User ${username} is no longer using server ${serverId}`
       }
@@ -265,10 +265,10 @@ function createServerFreeMessage(serverId) {
     "@type": "MessageCard",
     "@context": "http://schema.org/extensions",
     "themeColor": "00FF00",
-    "summary": `🟢 Server ${serverId} is now FREE`,
+    "summary": `[FREE] Server ${serverId} is now FREE`,
     "sections": [
       {
-        "activityTitle": `🟢 Server ${serverId} is now FREE`,
+        "activityTitle": `[FREE] Server ${serverId} is now FREE`,
         "activitySubtitle": `${new Date().toLocaleString()}`,
         "text": `Server ${serverId} is available for use. No users are currently logged in.`
       }
