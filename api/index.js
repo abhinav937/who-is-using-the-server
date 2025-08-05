@@ -60,6 +60,8 @@ async function handleHeartbeat(req, res) {
       // Check if this is a new session BEFORE updating
       const existingSession = await redis.get(sessionKey);
       const isNewSession = !existingSession;
+      
+      console.log(`Session check for ${username} on ${serverId}: existing=${!!existingSession}, isNew=${isNewSession}`);
 
       // Update heartbeat
       await redis.set(sessionKey, JSON.stringify({
@@ -75,10 +77,11 @@ async function handleHeartbeat(req, res) {
       // Add to server's active sessions
       await redis.sAdd(serverKey, sessionKey);
 
-      // Send Teams notification for new sessions
+      // Send Teams notification for NEW sessions only
       if (isNewSession) {
+        console.log(`NEW SESSION DETECTED: ${username} on ${serverId}`);
         sendTeamsNotification(createLoginMessage(username, serverId));
-        console.log(`New session: ${username} on ${serverId}`);
+        console.log(`Login notification sent for: ${username} on ${serverId}`);
       } else {
         console.log(`Updated session: ${username} on ${serverId}`);
       }
@@ -187,19 +190,20 @@ async function checkForLogouts(redis) {
           const timeSinceLastHeartbeat = now - session.lastHeartbeat;
           console.log(`Session ${session.username} on ${session.serverId}: ${timeSinceLastHeartbeat}ms since last heartbeat`);
           
-          if (timeSinceLastHeartbeat > timeout) {
-            // Session timed out - user logged off
-            console.log(`Session timed out: ${session.username} on ${session.serverId}`);
-            loggedOffUsers.push(session);
-            serverIds.add(session.serverId);
-            
-            // Remove session from storage
-            await redis.del(sessionKey);
-            await redis.sRem(serverKey, sessionKey);
-            
-            // Send Teams notification for logout
-            sendTeamsNotification(createLogoutMessage(session.username, session.serverId));
-          }
+                     if (timeSinceLastHeartbeat > timeout) {
+             // Session timed out - user logged off
+             console.log(`Session timed out: ${session.username} on ${session.serverId}`);
+             loggedOffUsers.push(session);
+             serverIds.add(session.serverId);
+             
+             // Remove session from storage
+             await redis.del(sessionKey);
+             await redis.sRem(serverKey, sessionKey);
+             
+             // Send Teams notification for logout
+             sendTeamsNotification(createLogoutMessage(session.username, session.serverId));
+             console.log(`Logout notification sent for: ${session.username} on ${session.serverId}`);
+           }
         } else {
           // Session doesn't exist, remove from server
           await redis.sRem(serverKey, sessionKey);
@@ -209,26 +213,27 @@ async function checkForLogouts(redis) {
 
     console.log(`Logged off users: ${loggedOffUsers.length}`);
 
-    // Check if any servers are now free
-    for (const serverId of serverIds) {
-      const serverKey = `server:${serverId}`;
-      const sessionKeys = await redis.sMembers(serverKey);
-      let serverHasUsers = false;
+         // Check if any servers are now free
+     for (const serverId of serverIds) {
+       const serverKey = `server:${serverId}`;
+       const sessionKeys = await redis.sMembers(serverKey);
+       let serverHasUsers = false;
 
-      for (const sessionKey of sessionKeys) {
-        const sessionData = await redis.get(sessionKey);
-        if (sessionData) {
-          serverHasUsers = true;
-          break;
-        }
-      }
-      
-      if (!serverHasUsers) {
-        // Server is now free
-        console.log(`Server ${serverId} is now free`);
-        sendTeamsNotification(createServerFreeMessage(serverId));
-      }
-    }
+       for (const sessionKey of sessionKeys) {
+         const sessionData = await redis.get(sessionKey);
+         if (sessionData) {
+           serverHasUsers = true;
+           break;
+         }
+       }
+       
+       if (!serverHasUsers) {
+         // Server is now free - send notification immediately
+         console.log(`Server ${serverId} is now free`);
+         sendTeamsNotification(createServerFreeMessage(serverId));
+         console.log(`Server free notification sent for: ${serverId}`);
+       }
+     }
 
   } catch (error) {
     console.error('Error checking for logouts:', error);
@@ -239,18 +244,26 @@ async function handleTeamsTest(req, res) {
   try {
     console.log('Testing Teams notification...');
     
-    // Test login message
-    await sendTeamsNotification(createLoginMessage('test-user', 'TEST-SERVER'));
+    // Only send one test message based on query parameter
+    const testType = req.query.type || 'login';
     
-    // Test logout message
-    await sendTeamsNotification(createLogoutMessage('test-user', 'TEST-SERVER'));
-    
-    // Test server free message
-    await sendTeamsNotification(createServerFreeMessage('TEST-SERVER'));
+    switch (testType) {
+      case 'login':
+        await sendTeamsNotification(createLoginMessage('test-user', 'TEST-SERVER'));
+        break;
+      case 'logout':
+        await sendTeamsNotification(createLogoutMessage('test-user', 'TEST-SERVER'));
+        break;
+      case 'free':
+        await sendTeamsNotification(createServerFreeMessage('TEST-SERVER'));
+        break;
+      default:
+        await sendTeamsNotification(createLoginMessage('test-user', 'TEST-SERVER'));
+    }
     
     res.status(200).json({ 
       success: true, 
-      message: 'Teams test notifications sent',
+      message: `Teams test notification sent: ${testType}`,
       timestamp: new Date().toISOString()
     });
     
