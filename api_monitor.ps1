@@ -3,7 +3,7 @@
 
 param(
     [string]$ApiUrl = "https://who-is-using-the-server.vercel.app/api",
-    [int]$Interval = 30,
+    [int]$Interval = 20,
     [string]$Mode = "auto"  # auto, login-only, heartbeat-only
 )
 
@@ -192,6 +192,20 @@ function Send-Heartbeat {
     }
 }
 
+# Register cleanup handler for abrupt termination
+$cleanupHandler = {
+    if ($script:IsLoggedIn) {
+        Write-Host "`nReceived termination signal, sending logout..." -ForegroundColor Yellow
+        Send-Logout
+        Write-Host "Cleanup completed." -ForegroundColor Cyan
+    }
+    exit 0
+}
+
+# Register the cleanup handler for various termination signals
+Register-EngineEvent -SourceIdentifier ([System.Console]::CancelKeyPress) -Action $cleanupHandler
+Register-EngineEvent -SourceIdentifier ([System.Management.Automation.PsEngineEvent]::Exiting) -Action $cleanupHandler
+
 # Main execution
 try {
     # Initial login
@@ -244,4 +258,8 @@ try {
         Send-Logout
     }
     Write-Host "Server Monitor cleanup completed." -ForegroundColor Cyan
+    
+    # Unregister cleanup handlers
+    Unregister-Event -SourceIdentifier ([System.Console]::CancelKeyPress) -ErrorAction SilentlyContinue
+    Unregister-Event -SourceIdentifier ([System.Management.Automation.PsEngineEvent]::Exiting) -ErrorAction SilentlyContinue
 } 

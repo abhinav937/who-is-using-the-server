@@ -89,7 +89,7 @@ async function handleLogin(req, res) {
           lastLogin: now,
           sessionId: sessionId || session.sessionId,
           status: 'active'
-        }), { EX: 300 }); // 5 minutes expiry
+        }), { EX: 120 }); // 2 minutes expiry for consistency
         
         res.status(200).json({ 
           success: true, 
@@ -108,7 +108,7 @@ async function handleLogin(req, res) {
           status: 'active'
         };
 
-        await redis.set(sessionKey, JSON.stringify(newSession), { EX: 300 });
+        await redis.set(sessionKey, JSON.stringify(newSession), { EX: 120 });
         await redis.sAdd(serverKey, sessionKey);
 
         // Send login notification
@@ -242,7 +242,7 @@ async function handleHeartbeat(req, res) {
         status: status || 'active',
         cpu: cpu,
         memory: memory
-      }), { EX: 180 }); // 3 minutes expiry for aggressive timing
+      }), { EX: 120 }); // 2 minutes expiry for faster detection
 
       // Add to server's active sessions
       await redis.sAdd(serverKey, sessionKey);
@@ -336,7 +336,7 @@ async function handleStatus(req, res) {
 
 async function checkForLogouts(redis) {
   const now = Date.now();
-  const timeout = 60 * 1000; // 60 seconds timeout (increased from 30s to reduce false positives)
+  const timeout = 45 * 1000; // Reduced to 45 seconds for faster detection of abrupt disconnections
 
   console.log(`Checking for logouts at ${new Date().toLocaleString()}`);
 
@@ -432,6 +432,33 @@ async function handleCheckLogouts(req, res) {
     console.error('Logout check error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
+}
+
+// Auto-check for logouts every 30 seconds
+let logoutCheckInterval = null;
+
+function startAutoLogoutCheck() {
+  if (logoutCheckInterval) {
+    clearInterval(logoutCheckInterval);
+  }
+  
+  logoutCheckInterval = setInterval(async () => {
+    try {
+      const redis = await getRedisClient();
+      await checkForLogouts(redis);
+      await redis.disconnect();
+    } catch (error) {
+      console.error('Auto logout check error:', error);
+    }
+  }, 30000); // Check every 30 seconds
+  
+  console.log('Auto logout check started (every 30 seconds)');
+}
+
+// Start the auto logout check when the module loads
+if (typeof window === 'undefined') {
+  // Only run on server side
+  startAutoLogoutCheck();
 }
 
 async function handleTeamsTest(req, res) {
