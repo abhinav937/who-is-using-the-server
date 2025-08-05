@@ -407,7 +407,7 @@ async function checkForLogouts(redis) {
       }
     }
 
-    // Also check server sessions for consistency
+    // Also check server sessions for consistency and detect orphaned sessions
     const serverKeys = await redis.keys('server:*');
     for (const serverKey of serverKeys) {
       const sessionKeys = await redis.sMembers(serverKey);
@@ -416,8 +416,30 @@ async function checkForLogouts(redis) {
         const sessionData = await redis.get(sessionKey);
         
         if (!sessionData) {
-          // Session doesn't exist, remove from server
-          console.log(`Removing orphaned session key: ${sessionKey}`);
+          // Session doesn't exist - this means user was logged off abruptly
+          console.log(`Found orphaned session key: ${sessionKey}`);
+          
+          // Extract username and serverId from session key
+          const keyParts = sessionKey.replace('session:', '').split('-');
+          if (keyParts.length >= 2) {
+            const serverId = keyParts[0];
+            const username = keyParts.slice(1).join('-'); // Handle usernames with hyphens
+            
+            console.log(`Detected abrupt logout for user: ${username} on server: ${serverId}`);
+            
+            // Send logout notification for abrupt disconnection
+            sendTeamsNotification(createLogoutMessage(username, serverId, 'abrupt_disconnection'));
+            console.log(`Logout notification sent for abrupt disconnection: ${username} on ${serverId}`);
+            
+            loggedOffUsers.push({
+              username: username,
+              serverId: serverId,
+              reason: 'abrupt_disconnection'
+            });
+            serverIds.add(serverId);
+          }
+          
+          // Remove from server
           await redis.sRem(serverKey, sessionKey);
         }
       }

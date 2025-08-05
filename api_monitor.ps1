@@ -194,19 +194,17 @@ function Send-Heartbeat {
     }
 }
 
-# Register cleanup handler for abrupt termination
-$cleanupHandler = {
-    if ($script:IsLoggedIn) {
-        Write-Host "`nReceived termination signal, sending logout..." -ForegroundColor Yellow
+# Simple cleanup handler (no admin required)
+$script:CleanupPerformed = $false
+
+function Invoke-Cleanup {
+    if (-not $script:CleanupPerformed -and $script:IsLoggedIn) {
+        $script:CleanupPerformed = $true
+        Write-Host "`nPerforming cleanup, sending logout..." -ForegroundColor Yellow
         Send-Logout
         Write-Host "Cleanup completed." -ForegroundColor Cyan
     }
-    exit 0
 }
-
-# Register the cleanup handler for various termination signals
-Register-EngineEvent -SourceIdentifier ([System.Console]::CancelKeyPress) -Action $cleanupHandler
-Register-EngineEvent -SourceIdentifier ([System.Management.Automation.PsEngineEvent]::Exiting) -Action $cleanupHandler
 
 # Main execution
 try {
@@ -259,12 +257,6 @@ try {
     
 } finally {
     # Final cleanup
-    if ($script:IsLoggedIn) {
-        Send-Logout
-    }
+    Invoke-Cleanup
     Write-Host "Server Monitor cleanup completed." -ForegroundColor Cyan
-    
-    # Unregister cleanup handlers
-    Unregister-Event -SourceIdentifier ([System.Console]::CancelKeyPress) -ErrorAction SilentlyContinue
-    Unregister-Event -SourceIdentifier ([System.Management.Automation.PsEngineEvent]::Exiting) -ErrorAction SilentlyContinue
 } 
