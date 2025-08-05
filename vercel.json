@@ -4,8 +4,5 @@
     "api/index.js": {
       "maxDuration": 10
     }
-  },
-  "env": {
-    "TEAMS_WEBHOOK_URL": "@teams-webhook-url"
   }
 } 

@@ -1,6 +1,6 @@
 # Vercel API Deployment Guide
 
-This guide will help you deploy the server monitoring API to Vercel.
+This guide will help you deploy the server monitoring API to Vercel with persistent storage.
 
 ## Prerequisites
 
@@ -8,33 +8,57 @@ This guide will help you deploy the server monitoring API to Vercel.
 2. **Vercel CLI** installed: `npm i -g vercel`
 3. **Git** for version control
 
-## Step 1: Deploy to Vercel
+## Step 1: Set Up Vercel KV Storage
 
-1. **Login to Vercel:**
+1. **Install Vercel CLI:**
+   ```bash
+   npm i -g vercel
+   ```
+
+2. **Login to Vercel:**
    ```bash
    vercel login
    ```
 
-2. **Deploy the API:**
+3. **Create Vercel KV Database:**
+   ```bash
+   vercel kv create
+   ```
+   - Choose a name for your database (e.g., `server-monitor-kv`)
+   - Select a region close to you
+   - Note the connection details
+
+4. **Link KV to your project:**
+   ```bash
+   vercel kv pull
+   ```
+
+## Step 2: Deploy to Vercel
+
+1. **Deploy the API:**
    ```bash
    vercel --prod
    ```
 
-3. **Note the deployment URL** (e.g., `https://your-app.vercel.app`)
+2. **Note the deployment URL** (e.g., `https://your-app.vercel.app`)
 
-## Step 2: Set Environment Variables
+## Step 3: Set Environment Variables
 
 1. **Go to Vercel Dashboard:**
    - Visit https://vercel.com/dashboard
    - Select your project
 
-2. **Add Environment Variable:**
+2. **Add Environment Variables:**
    - Go to Settings → Environment Variables
    - Add: `TEAMS_WEBHOOK_URL`
    - Value: Your Teams webhook URL
    - Environment: Production
 
-## Step 3: Update Local Configuration
+3. **Verify KV Environment Variables:**
+   - The KV connection variables should be automatically added
+   - Check that `KV_URL`, `KV_REST_API_URL`, `KV_REST_API_TOKEN`, `KV_REST_API_READ_ONLY_TOKEN` are present
+
+## Step 4: Update Local Configuration
 
 1. **Update API URL in config.env:**
    - Edit `config.env`
@@ -47,7 +71,7 @@ This guide will help you deploy the server monitoring API to Vercel.
      -d '{"serverId":"test","username":"testuser","cpu":25,"memory":8192,"status":"active","timestamp":1234567890}'
    ```
 
-## Step 4: Install Local Monitor
+## Step 5: Install Local Monitor
 
 1. **Run the installation:**
    ```bash
@@ -63,7 +87,8 @@ This guide will help you deploy the server monitoring API to Vercel.
 
 ### Architecture
 - **Local Script** (`api_monitor.ps1`) - Sends heartbeat data to Vercel API
-- **Vercel API** (`api/index.js`) - Tracks sessions and sends Teams notifications
+- **Vercel API** (`api/index.js`) - Tracks sessions using Vercel KV storage
+- **Vercel KV** - Persistent Redis storage for session data
 - **Teams** - Receives notifications for login/logoff events
 
 ### API Endpoints
@@ -86,7 +111,7 @@ This guide will help you deploy the server monitoring API to Vercel.
 
 ### Logoff Detection
 
-- API tracks last heartbeat time for each user
+- API tracks last heartbeat time for each user in Vercel KV
 - If no heartbeat for 90 seconds, user is considered logged off
 - Teams notification is sent automatically by the Vercel API
 
@@ -95,6 +120,7 @@ This guide will help you deploy the server monitoring API to Vercel.
 The Vercel API sends Teams notifications for:
 - **Login events** - When a new user session is detected
 - **Logoff events** - When a user session times out (90 seconds)
+- **Server free events** - When the last user logs off
 
 ## Troubleshooting
 
@@ -102,6 +128,7 @@ The Vercel API sends Teams notifications for:
 - Check Vercel deployment status
 - Verify environment variables are set
 - Check Vercel function logs
+- Ensure Vercel KV is properly configured
 
 ### Local Script Not Working
 - Verify API URL is correct in `config.env`
@@ -114,13 +141,18 @@ The Vercel API sends Teams notifications for:
 - Test webhook manually
 - Check Vercel function logs for notification errors
 
+### KV Storage Issues
+- Verify KV environment variables are set
+- Check KV connection in Vercel dashboard
+- Ensure KV database is in the same region as your function
+
 ## Files Structure
 
 ```
 ├── api/
-│   └── index.js          # Vercel API (handles Teams notifications)
+│   └── index.js          # Vercel API (uses KV storage)
 ├── vercel.json           # Vercel config
-├── package.json          # Dependencies
+├── package.json          # Dependencies (includes @vercel/kv)
 ├── api_monitor.ps1       # Local monitor script (sends heartbeats only)
 ├── run_api_monitor.bat   # Run script
 ├── install_api_monitor.bat # Install script

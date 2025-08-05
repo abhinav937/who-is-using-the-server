@@ -1,2 +1,5 @@
 send_message.py
 log.txt
+
+.vercel
+.env*.local

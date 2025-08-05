@@ -1,14 +1,17 @@
 {
   "name": "server-monitor-api",
   "version": "1.0.0",
+  "type": "module",
   "description": "API for tracking server user sessions",
   "main": "api/index.js",
   "scripts": {
     "dev": "vercel dev",
     "deploy": "vercel --prod"
   },
-  "dependencies": {},
+  "dependencies": {
+    "redis": "^5.7.0"
+  },
   "devDependencies": {
     "vercel": "^28.0.0"
   }
-} 
+}
