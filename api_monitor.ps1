@@ -171,11 +171,7 @@ function Send-Heartbeat {
         
         $response = Invoke-RestMethod -Uri $ApiUrl -Method POST -Body $jsonData -ContentType "application/json" -TimeoutSec 10
         
-        $timestamp = Get-ChicagoTime
-        Write-Host "[$timestamp] Heartbeat: $username on $computerName (CPU: $($systemInfo.cpu)%, Memory: $($systemInfo.memory)MB)" -ForegroundColor White
-        
         if ($response.success) {
-            Write-Host "  [OK] API response: $($response.message) (Sessions: $($response.sessionCount))" -ForegroundColor Green
             $script:LastHeartbeat = Get-Date
             $script:RetryCount = 0
             $script:HeartbeatCount++

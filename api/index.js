@@ -159,9 +159,10 @@ async function handleLogout(req, res) {
       if (sessionData) {
         const session = JSON.parse(sessionData);
         
-        // Send logout notification
-        sendTeamsNotification(createLogoutMessage(username, serverId, reason));
-        console.log(`Logout notification sent for: ${username} on ${serverId}`);
+                 // Send logout notification with session duration
+         const sessionDuration = Math.floor((Date.now() - session.loginTime) / 1000);
+         sendTeamsNotification(createLogoutMessage(username, serverId, reason, sessionDuration));
+         console.log(`Logout notification sent for: ${username} on ${serverId}`);
         
         // Remove session from storage
         await redis.del(sessionKey);
@@ -237,19 +238,20 @@ async function handleHeartbeat(req, res) {
       
       console.log(`Session check for ${username} on ${serverId}: existing=${!!existingSession}, isNew=${isNewSession}`);
 
-      // Update heartbeat with robust expiry and more detailed tracking
-      const sessionData = {
-        serverId,
-        username,
-        sessionId: sessionId || (existingSession ? JSON.parse(existingSession).sessionId : generateSessionId()),
-        loginTime: existingSession ? JSON.parse(existingSession).loginTime : now,
-        lastHeartbeat: now,
-        status: status || 'active',
-        cpu: cpu,
-        memory: memory,
-        heartbeatCount: existingSession ? (JSON.parse(existingSession).heartbeatCount || 0) + 1 : 1,
-        lastUpdate: new Date().toISOString()
-      };
+             // Update heartbeat with robust expiry and more detailed tracking
+       const sessionData = {
+         serverId,
+         username,
+         sessionId: sessionId || (existingSession ? JSON.parse(existingSession).sessionId : generateSessionId()),
+         loginTime: existingSession ? JSON.parse(existingSession).loginTime : now,
+         lastHeartbeat: now,
+         status: status || 'active',
+         cpu: cpu,
+         memory: memory,
+         heartbeatCount: existingSession ? (JSON.parse(existingSession).heartbeatCount || 0) + 1 : 1,
+         lastUpdate: new Date().toISOString(),
+         sessionDuration: Math.floor((now - (existingSession ? JSON.parse(existingSession).loginTime : now)) / 1000) // Duration in seconds
+       };
       
       await redis.set(sessionKey, JSON.stringify(sessionData), { EX: 90 }); // 90 seconds expiry for faster detection
       
@@ -391,9 +393,8 @@ async function checkForLogouts(redis) {
             await redis.del(activeKey);
             await redis.sRem(`server:${active.serverId}`, sessionKey);
             
-            // Send Teams notification for logout
-            sendTeamsNotification(createLogoutMessage(active.username, active.serverId, 'timeout'));
-            console.log(`Logout notification sent for: ${active.username} on ${active.serverId}`);
+                         // Don't send logout notification here - it will be sent as combined message if server becomes free
+             console.log(`Logout detected for: ${active.username} on ${active.serverId}`);
           } else {
             // Clean up orphaned active key
             await redis.del(activeKey);
@@ -427,9 +428,8 @@ async function checkForLogouts(redis) {
             
             console.log(`Detected abrupt logout for user: ${username} on server: ${serverId}`);
             
-            // Send logout notification for abrupt disconnection
-            sendTeamsNotification(createLogoutMessage(username, serverId, 'abrupt_disconnection'));
-            console.log(`Logout notification sent for abrupt disconnection: ${username} on ${serverId}`);
+                         // Don't send logout notification here - it will be sent as combined message if server becomes free
+             console.log(`Abrupt logout detected for: ${username} on ${serverId}`);
             
             loggedOffUsers.push({
               username: username,
@@ -447,7 +447,7 @@ async function checkForLogouts(redis) {
 
     console.log(`Logged off users: ${loggedOffUsers.length}`);
 
-    // Check if any servers are now free
+    // Check if any servers are now free and send combined messages
     for (const serverId of serverIds) {
       const serverKey = `server:${serverId}`;
       const sessionKeys = await redis.sMembers(serverKey);
@@ -462,10 +462,39 @@ async function checkForLogouts(redis) {
       }
       
       if (!serverHasUsers) {
-        // Server is now free - send notification immediately
-        console.log(`Server ${serverId} is now free`);
-        sendTeamsNotification(createServerFreeMessage(serverId));
-        console.log(`Server free notification sent for: ${serverId}`);
+        // Server is now free - check if we should send combined message
+        const chicagoTime = new Date().toLocaleString('en-US', { 
+          timeZone: 'America/Chicago',
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: false
+        });
+        
+        // Find the user who just logged out from this server
+        const loggedOutUser = loggedOffUsers.find(user => user.serverId === serverId);
+        
+                 if (loggedOutUser) {
+           // Send combined logout and server free message
+           console.log(`Server ${serverId} is now free after ${loggedOutUser.username} logged out`);
+           const sessionDuration = loggedOutUser.sessionDuration || Math.floor((Date.now() - (loggedOutUser.loginTime || Date.now())) / 1000);
+           sendTeamsNotification(createCombinedLogoutAndFreeMessage(
+             loggedOutUser.username, 
+             serverId, 
+             loggedOutUser.reason || 'timeout',
+             chicagoTime,
+             sessionDuration
+           ));
+           console.log(`Combined logout & server free notification sent for: ${loggedOutUser.username} on ${serverId}`);
+         } else {
+          // Send regular server free message
+          console.log(`Server ${serverId} is now free`);
+          sendTeamsNotification(createServerFreeMessage(serverId));
+          console.log(`Server free notification sent for: ${serverId}`);
+        }
       }
     }
 
@@ -555,12 +584,11 @@ function createLoginMessage(username, serverId) {
   });
   
   return {
-    "text": `[LOGIN] ${username} logged into ${serverId} at ${chicagoTime} CDT`,
-    "title": "Server Monitor - User Login"
+    "text": `🟢 **${username} logged in**\n**Server:** ${serverId}\n**Time:** ${chicagoTime} CDT`
   };
 }
 
-function createLogoutMessage(username, serverId, reason = 'manual') {
+function createLogoutMessage(username, serverId, reason = 'manual', sessionDuration = null) {
   const chicagoTime = new Date().toLocaleString('en-US', { 
     timeZone: 'America/Chicago',
     year: 'numeric',
@@ -572,9 +600,31 @@ function createLogoutMessage(username, serverId, reason = 'manual') {
     hour12: false
   });
   
+  const reasonText = {
+    'manual': 'Manual logout',
+    'graceful_shutdown': 'Graceful shutdown',
+    'timeout': 'Session timeout',
+    'abrupt_disconnection': 'Abrupt disconnection',
+    'test': 'Test logout'
+  };
+  
+  let durationText = '';
+  if (sessionDuration && sessionDuration > 0) {
+    const hours = Math.floor(sessionDuration / 3600);
+    const minutes = Math.floor((sessionDuration % 3600) / 60);
+    const seconds = sessionDuration % 60;
+    
+    if (hours > 0) {
+      durationText = `\n**Session Duration:** ${hours}h ${minutes}m ${seconds}s`;
+    } else if (minutes > 0) {
+      durationText = `\n**Session Duration:** ${minutes}m ${seconds}s`;
+    } else {
+      durationText = `\n**Session Duration:** ${seconds}s`;
+    }
+  }
+  
   return {
-    "text": `[LOGOUT] ${username} logged off from ${serverId} at ${chicagoTime} CDT (${reason})`,
-    "title": "Server Monitor - User Logout"
+    "text": `🔴 **${username} logged out**\n**Server:** ${serverId}\n**Time:** ${chicagoTime} CDT\n**Reason:** ${reasonText[reason] || reason}${durationText}`
   };
 }
 
@@ -591,8 +641,36 @@ function createServerFreeMessage(serverId) {
   });
   
   return {
-    "text": `[FREE] Server ${serverId} is now FREE at ${chicagoTime} CDT`,
-    "title": "Server Monitor - Server Available"
+    "text": `🟢 **Server ${serverId} is available**\n**Time:** ${chicagoTime} CDT\n**Status:** Ready for use`
+  };
+}
+
+function createCombinedLogoutAndFreeMessage(username, serverId, reason, chicagoTime, sessionDuration = null) {
+  const reasonText = {
+    'manual': 'Manual logout',
+    'graceful_shutdown': 'Graceful shutdown',
+    'timeout': 'Session timeout',
+    'abrupt_disconnection': 'Abrupt disconnection',
+    'test': 'Test logout'
+  };
+  
+  let durationText = '';
+  if (sessionDuration && sessionDuration > 0) {
+    const hours = Math.floor(sessionDuration / 3600);
+    const minutes = Math.floor((sessionDuration % 3600) / 60);
+    const seconds = sessionDuration % 60;
+    
+    if (hours > 0) {
+      durationText = `\n**Session Duration:** ${hours}h ${minutes}m ${seconds}s`;
+    } else if (minutes > 0) {
+      durationText = `\n**Session Duration:** ${minutes}m ${seconds}s`;
+    } else {
+      durationText = `\n**Session Duration:** ${seconds}s`;
+    }
+  }
+  
+  return {
+    "text": `🔴 **${username} logged out**\n**Server:** ${serverId}\n**Time:** ${chicagoTime} CDT\n**Reason:** ${reasonText[reason] || reason}${durationText}\n**Status:** Server is now available`
   };
 }
 
