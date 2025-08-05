@@ -15,7 +15,12 @@ export default async function handler(req, res) {
   if (req.method === 'POST') {
     await handleHeartbeat(req, res);
   } else if (req.method === 'GET') {
-    await handleStatus(req, res);
+    // Check if it's a test request
+    if (req.query.test === 'teams') {
+      await handleTeamsTest(req, res);
+    } else {
+      await handleStatus(req, res);
+    }
   } else {
     res.status(405).json({ error: 'Method not allowed' });
   }
@@ -52,6 +57,10 @@ async function handleHeartbeat(req, res) {
       // Check for logout detection first
       await checkForLogouts(redis);
 
+      // Check if this is a new session BEFORE updating
+      const existingSession = await redis.get(sessionKey);
+      const isNewSession = !existingSession;
+
       // Update heartbeat
       await redis.set(sessionKey, JSON.stringify({
         serverId,
@@ -66,10 +75,8 @@ async function handleHeartbeat(req, res) {
       // Add to server's active sessions
       await redis.sAdd(serverKey, sessionKey);
 
-      // Check if this is a new session
-      const existingSession = await redis.get(sessionKey);
-      if (!existingSession) {
-        // Send Teams notification for login
+      // Send Teams notification for new sessions
+      if (isNewSession) {
         sendTeamsNotification(createLoginMessage(username, serverId));
         console.log(`New session: ${username} on ${serverId}`);
       } else {
@@ -159,7 +166,7 @@ async function handleStatus(req, res) {
 
 async function checkForLogouts(redis) {
   const now = Date.now();
-  const timeout = 90 * 1000; // 90 seconds timeout
+  const timeout = 30 * 1000; // 30 seconds timeout for testing
 
   console.log(`Checking for logouts at ${new Date().toLocaleString()}`);
 
@@ -228,77 +235,87 @@ async function checkForLogouts(redis) {
   }
 }
 
+async function handleTeamsTest(req, res) {
+  try {
+    console.log('Testing Teams notification...');
+    
+    // Test login message
+    await sendTeamsNotification(createLoginMessage('test-user', 'TEST-SERVER'));
+    
+    // Test logout message
+    await sendTeamsNotification(createLogoutMessage('test-user', 'TEST-SERVER'));
+    
+    // Test server free message
+    await sendTeamsNotification(createServerFreeMessage('TEST-SERVER'));
+    
+    res.status(200).json({ 
+      success: true, 
+      message: 'Teams test notifications sent',
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Teams test error:', error);
+    res.status(500).json({ error: 'Teams test failed' });
+  }
+}
+
 function createLoginMessage(username, serverId) {
   return {
-    "@type": "MessageCard",
-    "@context": "http://schema.org/extensions",
-    "themeColor": "00FF00",
-    "summary": `[LOGIN] ${username} logged into ${serverId}`,
-    "sections": [
-      {
-        "activityTitle": `[LOGIN] ${username} logged into ${serverId}`,
-        "activitySubtitle": `${new Date().toLocaleString()}`,
-        "text": `User ${username} is now using server ${serverId}`
-      }
-    ]
+    "text": `[LOGIN] ${username} logged into ${serverId} at ${new Date().toLocaleString()}`,
+    "title": "Server Monitor - User Login"
   };
 }
 
 function createLogoutMessage(username, serverId) {
   return {
-    "@type": "MessageCard",
-    "@context": "http://schema.org/extensions",
-    "themeColor": "FF0000",
-    "summary": `[LOGOUT] ${username} logged off from ${serverId}`,
-    "sections": [
-      {
-        "activityTitle": `[LOGOUT] ${username} logged off from ${serverId}`,
-        "activitySubtitle": `${new Date().toLocaleString()}`,
-        "text": `User ${username} is no longer using server ${serverId}`
-      }
-    ]
+    "text": `[LOGOUT] ${username} logged off from ${serverId} at ${new Date().toLocaleString()}`,
+    "title": "Server Monitor - User Logout"
   };
 }
 
 function createServerFreeMessage(serverId) {
   return {
-    "@type": "MessageCard",
-    "@context": "http://schema.org/extensions",
-    "themeColor": "00FF00",
-    "summary": `[FREE] Server ${serverId} is now FREE`,
-    "sections": [
-      {
-        "activityTitle": `[FREE] Server ${serverId} is now FREE`,
-        "activitySubtitle": `${new Date().toLocaleString()}`,
-        "text": `Server ${serverId} is available for use. No users are currently logged in.`
-      }
-    ]
+    "text": `[FREE] Server ${serverId} is now FREE at ${new Date().toLocaleString()}`,
+    "title": "Server Monitor - Server Available"
   };
 }
 
-function sendTeamsNotification(message) {
+async function sendTeamsNotification(message) {
   const webhookUrl = process.env.TEAMS_WEBHOOK_URL;
   
+  console.log('=== TEAMS NOTIFICATION DEBUG ===');
+  console.log('Teams webhook URL configured:', !!webhookUrl);
+  console.log('Teams webhook URL length:', webhookUrl ? webhookUrl.length : 0);
+  console.log('Message to send:', JSON.stringify(message, null, 2));
+  
   if (!webhookUrl) {
-    console.log('Teams notification (no webhook configured):', message.summary);
+    console.log('Teams notification (no webhook configured):', message.text);
     return;
   }
 
-  console.log('Sending Teams notification:', message.summary);
-
-  fetch(webhookUrl, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(message)
-  }).then(response => {
+  try {
+    console.log('Sending Teams notification:', message.text);
+    
+    const response = await fetch(webhookUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(message)
+    });
+    
+    console.log('Teams response status:', response.status);
+    console.log('Teams response status text:', response.statusText);
+    
     if (!response.ok) {
-      console.error('Teams notification failed:', response.status, response.statusText);
+      const errorText = await response.text();
+      console.error('Teams notification failed:', response.status, response.statusText, errorText);
     } else {
-      console.log('Teams notification sent successfully:', message.summary);
+      console.log('Teams notification sent successfully:', message.text);
     }
-  }).catch(error => {
-    console.error('Teams notification error:', error);
-  });
+  } catch (error) {
+    console.error('Teams notification error:', error.message);
+    console.error('Teams notification error stack:', error.stack);
+  }
 } 
