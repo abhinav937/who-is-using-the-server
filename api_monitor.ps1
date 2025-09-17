@@ -199,7 +199,7 @@ function Install-StartupShortcut {
     $shortcut.Description = "Session Monitor Tray Application"
     $shortcut.Save()
 
-    Write-Host "✅ Installed startup shortcut: $shortcutPath" -ForegroundColor Green
+    Write-Host "SUCCESS: Installed startup shortcut: $shortcutPath" -ForegroundColor Green
 }
 
 # Main application

@@ -57,7 +57,7 @@ function Install-Monitor {
 
     # Check if script exists
     if (-not (Test-Path $scriptPath)) {
-        Write-Host "❌ Error: Monitor script not found at $scriptPath" -ForegroundColor Red
+        Write-Host "ERROR: Monitor script not found at $scriptPath" -ForegroundColor Red
         exit 1
     }
 
@@ -75,9 +75,9 @@ function Install-Monitor {
         $shortcut.WorkingDirectory = $PSScriptRoot
         $shortcut.Description = "Session Monitor Tray Application - Auto-start"
         $shortcut.Save()
-        Write-Host "✅ Auto-start shortcut installed: $startupShortcut" -ForegroundColor Green
+        Write-Host "SUCCESS: Auto-start shortcut installed: $startupShortcut" -ForegroundColor Green
     } catch {
-        Write-Host "❌ Error creating startup shortcut: $($_.Exception.Message)" -ForegroundColor Red
+        Write-Host "ERROR: Failed to create startup shortcut: $($_.Exception.Message)" -ForegroundColor Red
         exit 1
     }
 
@@ -86,7 +86,7 @@ function Install-Monitor {
     Start-Monitor
 
     Write-Host ""
-    Write-Host "🎉 Installation completed successfully!" -ForegroundColor Green
+    Write-Host "Installation completed successfully!" -ForegroundColor Green
     Write-Host ""
     Write-Host "What was installed:" -ForegroundColor Cyan
     Write-Host "  • Auto-start shortcut in startup folder" -ForegroundColor Gray
@@ -113,13 +113,13 @@ function Uninstall-Monitor {
     Write-Host "Removing auto-start shortcut..." -ForegroundColor Cyan
     if (Test-Path $startupShortcut) {
         Remove-Item $startupShortcut -Force
-        Write-Host "✅ Removed startup shortcut: $startupShortcut" -ForegroundColor Green
+        Write-Host "SUCCESS: Removed startup shortcut: $startupShortcut" -ForegroundColor Green
     } else {
-        Write-Host "ℹ️  Startup shortcut not found (already removed)" -ForegroundColor Gray
+        Write-Host "INFO: Startup shortcut not found (already removed)" -ForegroundColor Gray
     }
 
     Write-Host ""
-    Write-Host "🗑️  Uninstallation completed!" -ForegroundColor Green
+    Write-Host "Uninstallation completed!" -ForegroundColor Green
     Write-Host ""
     Write-Host "What was removed:" -ForegroundColor Cyan
     Write-Host "  • Auto-start shortcut" -ForegroundColor Gray
@@ -133,10 +133,10 @@ function Start-Monitor {
     Write-Host "Starting Session Monitor..." -ForegroundColor Green
     try {
         $process = Start-Process powershell.exe -ArgumentList "-WindowStyle Hidden", "-ExecutionPolicy Bypass", "-File", "`"$scriptPath`"", "-ApiUrl", "`"$ApiUrl`"", "-CheckInterval", $CheckInterval -NoNewWindow -PassThru
-        Write-Host "✅ Monitor started (PID: $($process.Id))" -ForegroundColor Green
+        Write-Host "SUCCESS: Monitor started (PID: $($process.Id))" -ForegroundColor Green
         Write-Host "Check the system tray for the monitor icon." -ForegroundColor Cyan
     } catch {
-        Write-Host "❌ Error starting monitor: $($_.Exception.Message)" -ForegroundColor Red
+        Write-Host "ERROR: Failed to start monitor: $($_.Exception.Message)" -ForegroundColor Red
     }
 }
 
@@ -148,7 +148,7 @@ function Stop-Monitor {
     $processes = Get-Process | Where-Object { $_.ProcessName -eq 'powershell' -and $_.CommandLine -like '*api_monitor.ps1*' }
     if ($processes.Count -gt 0) {
         $processes | Stop-Process -Force
-        Write-Host "✅ Stopped $($processes.Count) monitor process(es)" -ForegroundColor Green
+        Write-Host "SUCCESS: Stopped $($processes.Count) monitor process(es)" -ForegroundColor Green
         $stopped = $true
     }
 
@@ -156,12 +156,12 @@ function Stop-Monitor {
     $formsProcesses = Get-Process | Where-Object { $_.MainWindowTitle -like '*Session Monitor*' -or $_.ProcessName -eq 'powershell' -and $_.CommandLine -like '*System.Windows.Forms*' }
     if ($formsProcesses.Count -gt 0) {
         $formsProcesses | Stop-Process -Force
-        Write-Host "✅ Stopped $($formsProcesses.Count) UI process(es)" -ForegroundColor Green
+        Write-Host "SUCCESS: Stopped $($formsProcesses.Count) UI process(es)" -ForegroundColor Green
         $stopped = $true
     }
 
     if (-not $stopped) {
-        Write-Host "ℹ️  No running monitor processes found" -ForegroundColor Gray
+        Write-Host "INFO: No running monitor processes found" -ForegroundColor Gray
     }
 }
 
@@ -190,6 +190,7 @@ if ($Install) {
     Write-Host ""
     Write-Host "Examples:" -ForegroundColor Yellow
     Write-Host "  .\setup.ps1 -Install" -ForegroundColor Gray
-    Write-Host "  .\setup.ps1 -Install -ApiUrl 'https://custom-api.com/api' -CheckInterval 30" -ForegroundColor Gray
+    $exampleCmd = '.\setup.ps1 -Install -ApiUrl "https://custom-api.com/api" -CheckInterval 30'
+    Write-Host "  $exampleCmd" -ForegroundColor Gray
     Write-Host "  .\setup.ps1 -Status" -ForegroundColor Gray
 }
