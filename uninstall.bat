@@ -7,10 +7,13 @@ echo.
 echo Uninstalling Session Monitor...
 echo.
 
-REM Run the PowerShell setup script completely hidden - batch file will exit immediately
-start "" /B powershell -WindowStyle Hidden -ExecutionPolicy Bypass -Command "& { & '%~dp0setup.ps1' -Uninstall }" >nul 2>&1
+REM Launch PowerShell directly and hidden
+start "" powershell -WindowStyle Hidden -ExecutionPolicy Bypass -File "%~dp0setup.ps1" -Uninstall
 
 echo Uninstallation completed. This window will close automatically.
+
+REM Small delay to let PowerShell start
+ping -n 2 127.0.0.1 >nul
 
 REM Exit immediately
 exit 
