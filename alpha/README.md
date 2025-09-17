@@ -22,7 +22,7 @@ This folder contains experimental/test scripts for alternative session monitorin
 # Run in background
 .\run_test_monitor.ps1 -Background
 
-# Install to startup (auto-start on login)
+# Install tray monitor to startup (auto-start + tray icon)
 .\run_test_monitor.ps1 -InstallStartup
 
 # Stop background jobs
@@ -37,6 +37,7 @@ This folder contains experimental/test scripts for alternative session monitorin
 - Survives user logoff/signout
 - Auto-starts on Windows login
 - Minimizes to system tray
+- Click tray icon for detailed status
 - Right-click menu for control
 
 ### `run_tray_monitor.ps1`

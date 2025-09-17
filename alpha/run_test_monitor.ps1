@@ -15,19 +15,33 @@ $startupFolder = [Environment]::GetFolderPath("Startup")
 $startupShortcut = Join-Path $startupFolder "Session Monitor.lnk"
 
 if ($InstallStartup) {
-    Write-Host "Installing to user startup folder..." -ForegroundColor Green
+    Write-Host "Installing Session Monitor with tray icon to startup..." -ForegroundColor Green
+    Write-Host "This will install the tray version for better control and visibility." -ForegroundColor Cyan
 
-    # Create a shortcut in startup folder
-    $shell = New-Object -ComObject WScript.Shell
-    $shortcut = $shell.CreateShortcut($startupShortcut)
-    $shortcut.TargetPath = "powershell.exe"
-    $shortcut.Arguments = "-WindowStyle Hidden -ExecutionPolicy Bypass -File `"$scriptPath`""
-    $shortcut.WorkingDirectory = $PSScriptRoot
-    $shortcut.Description = "Session Monitor - User Activity Tracking"
-    $shortcut.Save()
+    # Use the tray monitor for startup (provides tray icon + monitoring)
+    $trayScript = Join-Path $PSScriptRoot "tray_monitor.ps1"
+    if (Test-Path $trayScript) {
+        # Create a shortcut in startup folder that runs the tray monitor
+        $shell = New-Object -ComObject WScript.Shell
+        $shortcut = $shell.CreateShortcut($startupShortcut)
+        $shortcut.TargetPath = "powershell.exe"
+        $shortcut.Arguments = "-WindowStyle Hidden -ExecutionPolicy Bypass -File `"$trayScript`""
+        $shortcut.WorkingDirectory = $PSScriptRoot
+        $shortcut.Description = "Session Monitor Tray - Auto-start on login"
+        $shortcut.Save()
 
-    Write-Host "✅ Added to startup: $startupShortcut" -ForegroundColor Green
-    Write-Host "The monitor will start automatically when you log in." -ForegroundColor Cyan
+        Write-Host "✅ Installed tray monitor to startup: $startupShortcut" -ForegroundColor Green
+        Write-Host "📱 Tray icon will appear automatically when you log in" -ForegroundColor Cyan
+        Write-Host "🔄 Monitor will restart automatically on system startup" -ForegroundColor Cyan
+        Write-Host "" -ForegroundColor Cyan
+        Write-Host "💡 Tray Features:" -ForegroundColor Yellow
+        Write-Host "   • Click icon for status" -ForegroundColor Gray
+        Write-Host "   • Right-click for menu (Restart/Exit)" -ForegroundColor Gray
+        Write-Host "   • Survives sign-out/logoff" -ForegroundColor Gray
+    } else {
+        Write-Host "❌ Tray monitor script not found: $trayScript" -ForegroundColor Red
+        Write-Host "Please ensure tray_monitor.ps1 exists in the same directory." -ForegroundColor Yellow
+    }
     exit
 }
 
@@ -75,9 +89,9 @@ Write-Host "Starting test session monitor (normal mode)..." -ForegroundColor Gre
 Write-Host "Press Ctrl+C to stop." -ForegroundColor Yellow
 Write-Host ""
 Write-Host "💡 Tip: Use these commands for persistence:" -ForegroundColor Cyan
-Write-Host "   .\run_test_monitor.ps1 -InstallStartup   # Auto-start on login" -ForegroundColor Gray
+Write-Host "   .\run_test_monitor.ps1 -InstallStartup   # Install tray monitor + auto-start" -ForegroundColor Gray
 Write-Host "   .\run_test_monitor.ps1 -RemoveStartup    # Remove auto-start" -ForegroundColor Gray
-Write-Host "   .\run_test_monitor.ps1 -Background       # Run in background now" -ForegroundColor Gray
+Write-Host "   .\run_tray_monitor.ps1 -RunHidden        # Run tray monitor hidden" -ForegroundColor Gray
 Write-Host "   .\run_test_monitor.ps1 -Stop             # Stop background jobs" -ForegroundColor Gray
 Write-Host ""
 & $scriptPath

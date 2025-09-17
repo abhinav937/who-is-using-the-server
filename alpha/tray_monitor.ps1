@@ -79,11 +79,31 @@ function Stop-MonitorJob {
 }
 
 function Show-Status {
+    $statusMessage = "Session Monitor Status`n"
+
     if ($script:monitorJob) {
-        $status = $script:monitorJob.State
-        $trayIcon.ShowBalloonTip(3000, "Session Monitor", "Status: $status", [System.Windows.Forms.ToolTipIcon]::Info)
+        $jobStatus = $script:monitorJob.State
+        $statusMessage += "Job Status: $jobStatus`n"
+        $statusMessage += "Check Interval: $script:CheckInterval seconds`n"
+        $statusMessage += "API URL: $($script:ApiUrl -replace '^https?://([^/]+).*', '$1')`n"
+
+        # Get current timestamp
+        $currentTime = Get-Date -Format "HH:mm:ss"
+        $statusMessage += "Last Update: $currentTime`n"
+
+        # Show active users count if available
+        try {
+            $activeUsers = Get-ActiveUsers
+            $statusMessage += "Active Users: $($activeUsers.Count)"
+        } catch {
+            $statusMessage += "Active Users: Unknown"
+        }
+
+        $script:trayIcon.ShowBalloonTip(5000, "Session Monitor - Running", $statusMessage, [System.Windows.Forms.ToolTipIcon]::Info)
     } else {
-        $trayIcon.ShowBalloonTip(3000, "Session Monitor", "Monitor not running", [System.Windows.Forms.ToolTipIcon]::Warning)
+        $statusMessage += "Monitor: STOPPED`n"
+        $statusMessage += "Click 'Restart Monitor' to start"
+        $script:trayIcon.ShowBalloonTip(5000, "Session Monitor - Stopped", $statusMessage, [System.Windows.Forms.ToolTipIcon]::Warning)
     }
 }
 
@@ -92,9 +112,9 @@ function Create-TrayIcon {
     $script:contextMenu = New-Object System.Windows.Forms.ContextMenuStrip
 
     $statusItem = $script:contextMenu.Items.Add("Show Status")
-    $statusItem.Add_Click({ Show-Status })
+    $statusItem.Add_Click({ Show-Status }) | Out-Null
 
-    $script:contextMenu.Items.Add("-")  # Separator
+    $script:contextMenu.Items.Add("-") | Out-Null  # Separator
 
     $restartItem = $script:contextMenu.Items.Add("Restart Monitor")
     $restartItem.Add_Click({
@@ -102,9 +122,9 @@ function Create-TrayIcon {
         Start-Sleep -Seconds 2
         Start-MonitorJob
         $trayIcon.ShowBalloonTip(2000, "Session Monitor", "Monitor restarted", [System.Windows.Forms.ToolTipIcon]::Info)
-    })
+    }) | Out-Null
 
-    $script:contextMenu.Items.Add("-")  # Separator
+    $script:contextMenu.Items.Add("-") | Out-Null  # Separator
 
     $exitItem = $script:contextMenu.Items.Add("Exit")
     $exitItem.Add_Click({
@@ -119,7 +139,7 @@ function Create-TrayIcon {
             Stop-MonitorJob
             $script:mainForm.Close()
         }
-    })
+    }) | Out-Null
 
     # Create tray icon
     $script:trayIcon = New-Object System.Windows.Forms.NotifyIcon
@@ -128,7 +148,10 @@ function Create-TrayIcon {
     $script:trayIcon.ContextMenuStrip = $script:contextMenu
     $script:trayIcon.Visible = $true
 
-    # Double-click to show status
+    # Single-click to show status
+    $script:trayIcon.Add_Click({ Show-Status })
+
+    # Double-click also shows status (for compatibility)
     $script:trayIcon.Add_DoubleClick({ Show-Status })
 
     # Show startup notification

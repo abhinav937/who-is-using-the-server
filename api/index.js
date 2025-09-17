@@ -186,10 +186,10 @@ async function handleLogout(req, res) {
         }
         
         if (!serverHasUsers) {
-          // Server is now free - send notification immediately
+          // Server is now free - notification removed
           console.log(`Server ${serverId} is now free`);
-          sendTeamsNotification(createServerFreeMessage(serverId));
-          console.log(`Server free notification sent for: ${serverId}`);
+          // sendTeamsNotification(createServerFreeMessage(serverId));
+          console.log(`Server free notification removed for: ${serverId}`);
         }
         
         res.status(200).json({ 
@@ -503,22 +503,22 @@ async function checkForLogouts(redis) {
         const loggedOutUser = loggedOffUsers.find(user => user.serverId === serverId);
         
                  if (loggedOutUser) {
-           // Send combined logout and server free message
+           // Combined logout and server free message removed
            console.log(`Server ${serverId} is now free after ${loggedOutUser.username} logged out`);
            const sessionDuration = loggedOutUser.sessionDuration || Math.floor((Date.now() - (loggedOutUser.loginTime || Date.now())) / 1000);
-           sendTeamsNotification(createCombinedLogoutAndFreeMessage(
-             loggedOutUser.username, 
-             serverId, 
-             loggedOutUser.reason || 'timeout',
-             chicagoTime,
-             sessionDuration
-           ));
-           console.log(`Combined logout & server free notification sent for: ${loggedOutUser.username} on ${serverId}`);
+           // sendTeamsNotification(createCombinedLogoutAndFreeMessage(
+           //   loggedOutUser.username,
+           //   serverId,
+           //   loggedOutUser.reason || 'timeout',
+           //   chicagoTime,
+           //   sessionDuration
+           // ));
+           console.log(`Combined logout & server free notification removed for: ${loggedOutUser.username} on ${serverId}`);
          } else {
-          // Send regular server free message
+          // Regular server free message removed
           console.log(`Server ${serverId} is now free`);
-          sendTeamsNotification(createServerFreeMessage(serverId));
-          console.log(`Server free notification sent for: ${serverId}`);
+          // sendTeamsNotification(createServerFreeMessage(serverId));
+          console.log(`Server free notification removed for: ${serverId}`);
         }
       }
     }
