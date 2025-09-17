@@ -1,10 +1,6 @@
-# Test Session Monitor - Alternative Approach (No Admin Required)
-# This script detects active users using system queries instead of continuous heartbeats
-# Works without administrator privileges using:
-# - Process monitoring (explorer.exe)
-# - RDP session detection (qwinsta.exe)
-# - Environment variables
-# - Basic WMI queries
+# Test Session Monitor - RDP-Only Approach (No Admin Required)
+# This script detects active users using ONLY RDP session queries instead of continuous heartbeats
+# Uses qwinsta.exe to check for active RDP/console sessions
 #
 # To run persistently:
 # 1. .\run_test_monitor.ps1 -InstallStartup  # Auto-start on login
@@ -97,18 +93,23 @@ function Get-ActiveUsersViaRDP {
             } | ForEach-Object {
                 $matches = [regex]::Match($_.Line, '\s+(\w+)\s+\d+\s+(Active|Conn)')
                 if ($matches.Success -and $matches.Groups[1].Value -ne '') {
-                    $matches.Groups[1].Value
+                    $user = $matches.Groups[1].Value
+                    # Map "console" to actual username if it's the same person
+                    if ($user -eq "console") {
+                        $user = $env:USERNAME  # Use current logged-in username
+                        Write-Host "  [RDP] Console session mapped to user: $user" -ForegroundColor Gray
+                    } else {
+                        Write-Host "  [RDP] Found RDP user: $user" -ForegroundColor Gray
+                    }
+                    $user
                 }
             }
             $users += $activeSessions
-            foreach ($user in $activeSessions) {
-                Write-Host "  [RDP] Found active user: $user" -ForegroundColor Gray
-            }
         }
     } catch {
-        Write-Warning "RDP check failed: $_"
+        Write-Host "  [RDP] Failed: $($_.Exception.Message)" -ForegroundColor Gray
     }
-    return $users
+    return $users | Select-Object -Unique  # Remove duplicates
 }
 
 function Get-ActiveUsersViaEnvironment {
@@ -127,22 +128,13 @@ function Get-ActiveUsersViaEnvironment {
 }
 
 function Get-ActiveUsers {
-    $allUsers = @()
+    Write-Host "Detecting active users via RDP sessions..." -ForegroundColor Yellow
 
-    Write-Host "Detecting active users..." -ForegroundColor Yellow
-
-    # Try multiple detection methods (no admin required)
-    $wmiUsers = Get-ActiveUsersViaWMI
-    $processUsers = Get-ActiveUsersViaProcesses
+    # Use ONLY RDP session detection (qwinsta.exe)
     $rdpUsers = Get-ActiveUsersViaRDP
-    $envUsers = Get-ActiveUsersViaEnvironment
 
-    # Combine and deduplicate
-    $allUsers = $wmiUsers + $processUsers + $rdpUsers + $envUsers
-    $uniqueUsers = $allUsers | Select-Object -Unique
-
-    Write-Host "  Total unique active users detected: $($uniqueUsers.Count)" -ForegroundColor Green
-    return $uniqueUsers
+    Write-Host "  Total unique active users detected: $($rdpUsers.Count)" -ForegroundColor Green
+    return $rdpUsers
 }
 
 function Send-LoginNotification {
