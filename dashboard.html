@@ -1,276 +1,178 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1,shrink-to-fit=no">
-  <meta name="theme-color" content="#1f2937">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <meta name="apple-mobile-web-app-title" content="Server Dashboard">
-  <title>Server Sessions Dashboard</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Server Sessions</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/modern-normalize/2.0.0/modern-normalize.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/dashboard.css">
-  
 </head>
 <body>
-  <div class="container">
-    <header>
-      <h1>Server Sessions Dashboard</h1>
-      <div class="controls">
-        <div class="control-group">
-          <span class="control-label">Server:</span>
-          <select id="serverFilter">
-            <option value="">All servers</option>
-          </select>
+  <div class="app">
+    <header class="header">
+      <div class="header-content">
+        <h1 class="title">Server Sessions</h1>
+        <div class="controls">
+          <button id="refresh-btn" class="btn btn-primary">Refresh</button>
         </div>
-        <div class="control-group">
-          <span class="control-label">Refresh:</span>
-          <select id="refreshMs">
-            <option value="0">Off</option>
-            <option value="5000">5s</option>
-            <option value="10000" selected>10s</option>
-            <option value="30000">30s</option>
-            <option value="60000">1m</option>
-          </select>
-        </div>
-        <button id="refreshBtn">Refresh Now</button>
       </div>
     </header>
 
-    <div class="stats-grid" id="statsGrid"></div>
-
-    <div class="main-content">
-      <div class="card">
-        <div class="card-header">
-          <h2 class="card-title">Active Sessions</h2>
+    <main class="main">
+      <section class="section">
+        <div class="section-header">
+          <h2>Active Sessions</h2>
         </div>
-        <div class="card-content">
-          <div id="sessionsTable">
-            <div class="table-container">
-              <table>
-                <thead>
-                <tr>
-                  <th>Server</th>
-                  <th>User</th>
-                  <th>Last Heartbeat</th>
-                  <th>Status</th>
-                  <th>Duration</th>
-                </tr>
-                </thead>
-                <tbody id="rows"></tbody>
-              </table>
-            </div>
-            <div class="empty-state" id="emptyState" style="display: none;">
+        <div class="section-content">
+          <div id="sessions-container">
+            <div id="empty-state" class="empty-state">
               <h3>No Active Sessions</h3>
-              <p>Waiting for users to log in to servers...</p>
+              <p>Users will appear here when they log in</p>
+            </div>
+            <div id="table-container" class="table-container" style="display: none;">
+              <table id="sessions-table">
+                <thead>
+                  <tr>
+                    <th>Server</th>
+                    <th>User</th>
+                    <th>Last Seen</th>
+                    <th>Status</th>
+                    <th>Duration</th>
+                  </tr>
+                </thead>
+                <tbody id="sessions-body"></tbody>
+              </table>
             </div>
           </div>
         </div>
-      </div>
+      </section>
 
-      <div class="card">
-        <div class="card-header">
-          <h2 class="card-title">Debug Info</h2>
-          <button id="toggleRaw" class="secondary">Show Raw</button>
+      <section class="section">
+        <div class="section-header">
+          <h2>Debug Info</h2>
+          <button id="debug-toggle" class="btn btn-secondary">Show Raw</button>
         </div>
-        <div class="card-content">
-          <div id="raw" class="raw-data-container" style="display: none;"></div>
+        <div class="section-content">
+          <pre id="debug-output" class="debug-output" style="display: none;"></pre>
         </div>
-      </div>
-    </div>
+      </section>
+    </main>
   </div>
 
   <script>
-    // Construct API URL based on current location
-    let apiUrl;
-    if (location.pathname === '/' || location.pathname === '/dashboard' || location.pathname === '/dashboard.html') {
-      apiUrl = '/api/index.js';
-    } else {
-      const apiBase = (location.pathname.endsWith('/')) ? location.pathname.slice(0, -1) : location.pathname;
-      apiUrl = apiBase.replace(/\/index\.html$/, '/index.js');
+    // App state
+    let refreshTimer = null;
+    const API_URL = location.pathname.includes('/dashboard') ? '/api/index.js' : '/api/index.js';
+
+    // DOM helpers
+    const $ = (id) => document.getElementById(id);
+
+    // Formatters
+    const formatTime = (ms) => new Date(ms).toLocaleString();
+    const formatDuration = (seconds) => {
+      if (!seconds && seconds !== 0) return '';
+      const hours = Math.floor(seconds / 3600);
+      const minutes = Math.floor((seconds % 3600) / 60);
+      const secs = seconds % 60;
+      return [hours && `${hours}h`, minutes && `${minutes}m`, secs && `${secs}s`].filter(Boolean).join(' ');
+    };
+
+    // API functions
+    async function fetchData() {
+      const response = await fetch(API_URL, { headers: { 'Accept': 'application/json' } });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return response.json();
     }
 
-    const el = (id) => document.getElementById(id);
-    let timer = null;
-
-    function fmtTime(ms){ const d=new Date(ms); return d.toLocaleString(); }
-    function fmtDur(sec){ if(!sec&&sec!==0) return ''; const h=Math.floor(sec/3600), m=Math.floor((sec%3600)/60), s=sec%60; return (h? h+'h ':'')+ (m? m+'m ':'') + s+'s'; }
-
-    async function fetchAll(serverId){
-      const url = serverId ? `${apiUrl}?action=status&serverId=${encodeURIComponent(serverId)}` : `${apiUrl}`;
-      console.log('Fetching from URL:', url);
-      const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
-      if(!res.ok) {
-        const text = await res.text();
-        console.error('API response not OK:', res.status, text);
-        throw new Error(`Failed to fetch: ${res.status} ${text}`);
+    // Data processing
+    function processSessions(data) {
+      if (data.scope === 'server') {
+        return data.activeSessions?.map(s => ({ ...s, serverId: data.serverId })) || [];
       }
-      return res.json();
+      if (data.scope === 'all' && Array.isArray(data.servers)) {
+        return data.servers.flatMap(server => server.activeSessions?.map(session => ({ ...session, serverId: server.serverId })) || []);
+      }
+      return data.activeSessions || [];
     }
 
-    function flatten(data){
-      if(data.scope === 'server') {
-        return data.activeSessions.map(s => ({ ...s, serverId: data.serverId }));
-      }
-      if(data.scope === 'all' && Array.isArray(data.servers)){
-        return data.servers.flatMap(s => s.activeSessions.map(a => ({ ...a, serverId: s.serverId })));
-      }
-      // Back-compat fallback
-      if(Array.isArray(data.activeSessions)) return data.activeSessions;
-      return [];
-    }
 
-    function renderRows(sessions){
-      const tbody = el('rows');
-      const table = el('sessionsTable');
-      const emptyState = el('emptyState');
+    function renderSessions(sessions) {
+      const container = $('sessions-container');
+      const emptyState = $('empty-state');
+      const tableContainer = $('table-container');
+      const tbody = $('sessions-body');
 
-      tbody.innerHTML = '';
-      sessions.sort((a,b)=> (a.serverId||'').localeCompare(b.serverId||'') || (a.username||'').localeCompare(b.username||''));
-
-      if(sessions.length === 0){
-        table.style.display = 'none';
+      if (!sessions.length) {
         emptyState.style.display = 'block';
+        tableContainer.style.display = 'none';
         return;
       }
 
-      table.style.display = 'block';
       emptyState.style.display = 'none';
+      tableContainer.style.display = 'block';
+      tbody.innerHTML = '';
 
-      for(const s of sessions){
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td data-label="Server">${s.serverId||'N/A'}</td>
-          <td data-label="User">${s.username||'Unknown'}</td>
-          <td data-label="Last Heartbeat">${fmtTime(s.lastHeartbeat||0)}</td>
-          <td data-label="Status"><span class="status ${s.status==='active'?'active':'inactive'}">${s.status||'unknown'}</span></td>
-          <td data-label="Duration">${fmtDur(s.sessionDuration)}</td>
-        `;
-        tbody.appendChild(tr);
-      }
-    }
-
-    function renderStats(data){
-      const grid = el('statsGrid');
-      grid.innerHTML = '';
-
-      if(data.scope === 'server'){
-        const sessions = data.totalSessions || 0;
-        grid.innerHTML = `
-          <div class="stat-card">
-            <div class="stat-value">${sessions}</div>
-            <div class="stat-label">Active Sessions</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-value">${data.serverId}</div>
-            <div class="stat-label">Server</div>
-          </div>
-        `;
-      } else if (data.scope === 'all'){
-        const totalServers = data.totalServers ?? (data.servers? data.servers.length : 0);
-        const totalSessions = data.totalSessions ?? 0;
-        grid.innerHTML = `
-          <div class="stat-card">
-            <div class="stat-value">${totalSessions}</div>
-            <div class="stat-label">Total Sessions</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-value">${totalServers}</div>
-            <div class="stat-label">Active Servers</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-value">${totalServers > 0 ? Math.round(totalSessions / totalServers * 10) / 10 : 0}</div>
-            <div class="stat-label">Avg per Server</div>
-          </div>
-        `;
-      }
-    }
-
-    function updateServerFilter(data){
-      const sel = el('serverFilter');
-      const prev = sel.value;
-
-      // Get servers from current data
-      let servers = [];
-      if(data.scope==='all' && Array.isArray(data.servers)) {
-        servers = data.servers.map(s=>s.serverId);
-      } else if(data.serverId) {
-        servers = [data.serverId];
-      }
-
-      // Also check if we have any sessions that might have server info
-      if(data.scope==='all' && Array.isArray(data.servers)) {
-        const sessionServers = data.servers.flatMap(s => s.activeSessions.map(session => session.serverId)).filter(Boolean);
-        servers = [...new Set([...servers, ...sessionServers])];
-      }
-
-      // Clear existing options except the default
-      const defaultOption = sel.querySelector('option[value=""]');
-      sel.innerHTML = '';
-      sel.appendChild(defaultOption);
-
-      // Add server options
-      servers.forEach(serverId => {
-        const opt = document.createElement('option');
-        opt.value = serverId;
-        opt.textContent = serverId;
-        sel.appendChild(opt);
+      sessions.sort((a, b) => {
+        const serverCompare = (a.serverId || '').localeCompare(b.serverId || '');
+        return serverCompare || (a.username || '').localeCompare(b.username || '');
       });
 
-      // Restore previous selection if it still exists
-      if(servers.includes(prev)) {
-        sel.value = prev;
-      }
+      sessions.forEach(session => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td data-label="Server">${session.serverId || 'N/A'}</td>
+          <td data-label="User">${session.username || 'Unknown'}</td>
+          <td data-label="Last Seen">${formatTime(session.lastHeartbeat || 0)}</td>
+          <td data-label="Status"><span class="status status--${session.status || 'unknown'}">${session.status || 'unknown'}</span></td>
+          <td data-label="Duration">${formatDuration(session.sessionDuration)}</td>
+        `;
+        tbody.appendChild(row);
+      });
     }
 
-    async function refresh(){
+    // Main refresh function
+    async function refresh() {
       try {
-        const serverId = el('serverFilter').value || undefined;
-        console.log('Fetching data for serverId:', serverId);
-        const data = await fetchAll(serverId);
-        console.log('API response:', data);
+        const data = await fetchData();
+        const sessions = processSessions(data);
 
-        const sessions = flatten(data);
-
-        renderStats(data);
-        updateServerFilter(data);
-        renderRows(sessions);
-
-        el('raw').textContent = JSON.stringify(data, null, 2);
+        renderSessions(sessions);
+        $('debug-output').textContent = JSON.stringify(data, null, 2);
       } catch (error) {
-        console.error('Refresh error:', error);
-        el('raw').textContent = 'Error: ' + error.message;
+        console.error('Refresh failed:', error);
+        $('debug-output').textContent = `Error: ${error.message}`;
       }
     }
 
-    function setup(){
-      el('refreshBtn').addEventListener('click', ()=> refresh().catch(console.error));
-      el('refreshMs').addEventListener('change', (e)=>{
-        const ms = parseInt(e.target.value, 10);
-        if(timer){ clearInterval(timer); timer=null; }
-        if(ms>0){ timer = setInterval(()=> refresh().catch(console.error), ms); }
+    // Event handlers
+    function setupEventListeners() {
+      $('refresh-btn').addEventListener('click', () => refresh());
+
+      $('debug-toggle').addEventListener('click', () => {
+        const debug = $('debug-output');
+        const btn = $('debug-toggle');
+        const isHidden = debug.style.display === 'none';
+
+        debug.style.display = isHidden ? 'block' : 'none';
+        btn.textContent = isHidden ? 'Hide Raw' : 'Show Raw';
       });
-      el('serverFilter').addEventListener('change', ()=> refresh().catch(console.error));
-      el('toggleRaw').addEventListener('click', ()=>{
-        const raw = el('raw');
-        const btn = el('toggleRaw');
-        if(raw.style.display === 'none'){
-          raw.style.display = 'block';
-          btn.textContent = 'Hide Raw';
-        } else {
-          raw.style.display = 'none';
-          btn.textContent = 'Show Raw';
-        }
-      });
-      // default auto-refresh value
-      const ms = parseInt(el('refreshMs').value, 10);
-      if(ms>0){ timer = setInterval(()=> refresh().catch(console.error), ms); }
-      refresh().catch(console.error);
     }
 
-    setup();
+    // Initialize
+    function init() {
+      setupEventListeners();
+
+      // Start auto-refresh (10 seconds)
+      refreshTimer = setInterval(refresh, 10000);
+
+      // Initial load
+      refresh();
+    }
+
+    // Start the app
+    init();
   </script>
 </body>
 </html>
