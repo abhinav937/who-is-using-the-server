@@ -467,6 +467,55 @@
         margin: -16px -16px 0 -16px;
         border-radius: 0;
       }
+
+      /* Mobile-responsive table as stacked cards */
+      .table-container {
+        overflow: visible;
+        margin: 0;
+        padding: 0;
+      }
+
+      table {
+        min-width: 0;
+        border: 0;
+      }
+
+      thead {
+        display: none;
+      }
+
+      tbody tr {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px 12px;
+        padding: 12px;
+        margin-bottom: 12px;
+        border: 1px solid var(--gray-200);
+        border-radius: var(--border-radius);
+        background: white;
+      }
+
+      td {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0;
+        border: 0;
+        white-space: normal;
+      }
+
+      td::before {
+        content: attr(data-label);
+        font-weight: 600;
+        color: var(--gray-600);
+        margin-right: 12px;
+      }
+
+      /* Make primary fields span full width */
+      td:nth-child(1),
+      td:nth-child(2) {
+        grid-column: 1 / -1;
+      }
     }
 
     /* Small phone optimizations */
@@ -674,11 +723,11 @@
       for(const s of sessions){
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td>${s.serverId||'N/A'}</td>
-          <td>${s.username||'Unknown'}</td>
-          <td>${fmtTime(s.lastHeartbeat||0)}</td>
-          <td><span class="status ${s.status==='active'?'active':'inactive'}">${s.status||'unknown'}</span></td>
-          <td>${fmtDur(s.sessionDuration)}</td>
+          <td data-label="Server">${s.serverId||'N/A'}</td>
+          <td data-label="User">${s.username||'Unknown'}</td>
+          <td data-label="Last Heartbeat">${fmtTime(s.lastHeartbeat||0)}</td>
+          <td data-label="Status"><span class="status ${s.status==='active'?'active':'inactive'}">${s.status||'unknown'}</span></td>
+          <td data-label="Duration">${fmtDur(s.sessionDuration)}</td>
         `;
         tbody.appendChild(tr);
       }
