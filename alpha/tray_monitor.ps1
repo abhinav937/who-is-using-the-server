@@ -5,10 +5,7 @@ Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
 param(
-    [Parameter(Mandatory = $false)]
-    [string]$ApiUrl = "https://who-is-using-the-server.vercel.app/api"
-
-    [Parameter(Mandatory = $false)]
+    [string]$ApiUrl = "https://who-is-using-the-server.vercel.app/api",
     [int]$CheckInterval = 20
 )
 
