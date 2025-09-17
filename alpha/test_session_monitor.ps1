@@ -1,6 +1,6 @@
 # Test Session Monitor - RDP-Only Approach (No Admin Required)
-# This script detects active users using ONLY RDP session queries instead of continuous heartbeats
-# Uses qwinsta.exe to check for active RDP/console sessions
+# This script detects active users using ONLY RDP session queries - NO HEARTBEATS
+# Uses qwinsta.exe to check for active RDP/console sessions and sends login/logout only
 #
 # To run persistently:
 # 1. .\run_test_monitor.ps1 -InstallStartup  # Auto-start on login
@@ -9,7 +9,7 @@
 
 param(
     [string]$ApiUrl = "https://who-is-using-the-server.vercel.app/api",
-    [int]$CheckInterval = 60,  # Check every 60 seconds instead of continuous
+    [int]$CheckInterval = 20,  # Check every 20 seconds instead of continuous
     [int]$RequestTimeoutSec = 15
 )
 
@@ -164,30 +164,7 @@ function Send-LoginNotification {
     }
 }
 
-function Send-HeartbeatNotification {
-    param([string]$username)
-
-    try {
-        $heartbeatData = @{
-            action = "heartbeat"
-            serverId = $script:ServerId
-            username = $username
-            status = "active"
-        }
-
-        $jsonData = $heartbeatData | ConvertTo-Json -Compress
-
-        $response = Invoke-RestMethod -Uri $ApiUrl -Method POST -Body $jsonData -ContentType "application/json" -TimeoutSec $RequestTimeoutSec
-
-        if ($response.success) {
-            Write-Host "  [OK] Heartbeat sent for: $username" -ForegroundColor Green
-        }
-
-    } catch {
-        Write-Host "  [ERROR] Heartbeat failed for $username : $($_.Exception.Message)" -ForegroundColor Red
-    }
-}
-
+# Removed Send-HeartbeatNotification function - this approach doesn't use heartbeats
 function Send-LogoutNotification {
     param([string]$username)
 
@@ -233,10 +210,7 @@ try {
                 Send-LoginNotification -username $user
             }
 
-            # Send heartbeats for all current users
-            foreach ($user in $currentUsers) {
-                Send-HeartbeatNotification -username $user
-            }
+            # No heartbeats - we rely on login/logout detection only
 
             # Check for logouts
             $loggedOutUsers = $script:LastDetectedUsers | Where-Object { $_ -notin $currentUsers }
