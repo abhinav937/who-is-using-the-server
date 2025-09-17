@@ -25,7 +25,8 @@ if ($InstallStartup) {
         $shell = New-Object -ComObject WScript.Shell
         $shortcut = $shell.CreateShortcut($startupShortcut)
         $shortcut.TargetPath = "powershell.exe"
-        $shortcut.Arguments = "-WindowStyle Hidden -ExecutionPolicy Bypass -File `"$($trayScript)`""
+        $argsString = "-WindowStyle Hidden -ExecutionPolicy Bypass -File `"$trayScript`""
+        $shortcut.Arguments = $argsString
         $shortcut.WorkingDirectory = $PSScriptRoot
         $shortcut.Description = "Session Monitor Tray - Auto-start on login"
         $shortcut.Save()
