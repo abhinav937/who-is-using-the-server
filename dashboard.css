@@ -337,32 +337,38 @@ tbody tr:hover {
   /* Mobile table - card layout */
   .table-container {
     overflow: visible;
+    padding: 0;
   }
 
   table {
     border: none;
+    margin: 0;
   }
 
   thead {
     display: none;
   }
 
+  tbody {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
   tbody tr {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0.5rem 1rem;
+    display: block;
     padding: 1rem;
-    margin-bottom: 1rem;
     border: 1px solid #e5e7eb;
     border-radius: 0.5rem;
     background: white;
+    margin: 0;
   }
 
   td {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 0;
+    padding: 0.375rem 0;
     border: none;
     white-space: normal;
   }
@@ -371,13 +377,9 @@ tbody tr:hover {
     content: attr(data-label);
     font-weight: 600;
     color: #6b7280;
-    margin-right: 0.75rem;
-  }
-
-  /* Make primary fields span full width */
-  td:nth-child(1),
-  td:nth-child(2) {
-    grid-column: 1 / -1;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
   }
 
   .empty-state {
