@@ -1,13 +1,13 @@
 # System Tray Monitor - Windows Forms Application
 # Runs in system tray, survives logoff, auto-starts on login
 
-Add-Type -AssemblyName System.Windows.Forms
-Add-Type -AssemblyName System.Drawing
-
 param(
     [string]$ApiUrl = "https://who-is-using-the-server.vercel.app/api",
     [int]$CheckInterval = 20
 )
+
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName System.Drawing
 
 # Global variables
 $script:monitorJob = $null
