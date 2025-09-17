@@ -3,7 +3,7 @@ import { createClient } from 'redis';
 
 // Configurable TTLs and timeouts to reduce flakiness
 const SESSION_TTL_SEC = parseInt(process.env.SESSION_TTL_SEC || '180', 10); // Redis key expiry for sessions/active markers
-const LOGOUT_TIMEOUT_SEC = parseInt(process.env.LOGOUT_TIMEOUT_SEC || '120', 10); // Inactivity threshold before considering logged out
+const LOGOUT_TIMEOUT_SEC = parseInt(process.env.LOGOUT_TIMEOUT_SEC || '60', 10); // Inactivity threshold before considering logged out
 
 export default async function handler(req, res) {
   // Enable CORS
@@ -281,6 +281,13 @@ async function handleHeartbeat(req, res) {
       const sessionCount = await redis.sCard(serverKey);
       console.log(`Current sessions: ${sessionCount}`);
 
+      // Opportunistically run a quick logout check to accelerate detection
+      try {
+        await checkForLogouts(redis);
+      } catch (e) {
+        console.warn('checkForLogouts during heartbeat failed:', e.message);
+      }
+
       res.status(200).json({ 
         success: true, 
         message: 'Heartbeat received',
@@ -314,6 +321,12 @@ async function handleStatus(req, res) {
     const redis = await getRedisClient();
     
     try {
+      // Opportunistic cleanup on status fetch to keep data fresh
+      try {
+        await checkForLogouts(redis);
+      } catch (e) {
+        console.warn('checkForLogouts during status failed:', e.message);
+      }
       if (serverId) {
         const serverKey = `server:${serverId}`;
         const sessionKeys = await redis.sMembers(serverKey);
