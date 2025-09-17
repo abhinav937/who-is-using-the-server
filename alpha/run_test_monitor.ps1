@@ -31,16 +31,16 @@ if ($InstallStartup) {
         $shortcut.Description = "Session Monitor Tray - Auto-start on login"
         $shortcut.Save()
 
-        Write-Host "✅ Installed tray monitor to startup: $startupShortcut" -ForegroundColor Green
-        Write-Host "📱 Tray icon will appear automatically when you log in" -ForegroundColor Cyan
-        Write-Host "🔄 Monitor will restart automatically on system startup" -ForegroundColor Cyan
+        Write-Host "Installed tray monitor to startup: $startupShortcut" -ForegroundColor Green
+        Write-Host "Tray icon will appear automatically when you log in" -ForegroundColor Cyan
+        Write-Host "Monitor will restart automatically on system startup" -ForegroundColor Cyan
         Write-Host "" -ForegroundColor Cyan
-        Write-Host "💡 Tray Features:" -ForegroundColor Yellow
-        Write-Host "   • Click icon for status" -ForegroundColor Gray
-        Write-Host "   • Right-click for menu (Restart/Exit)" -ForegroundColor Gray
-        Write-Host "   • Survives sign-out/logoff" -ForegroundColor Gray
+        Write-Host "Tray Features:" -ForegroundColor Yellow
+        Write-Host "   - Click icon for status" -ForegroundColor Gray
+        Write-Host "   - Right-click for menu (Restart/Exit)" -ForegroundColor Gray
+        Write-Host "   - Survives sign-out/logoff" -ForegroundColor Gray
     } else {
-        Write-Host "❌ Tray monitor script not found: $trayScript" -ForegroundColor Red
+        Write-Host "Tray monitor script not found: $trayScript" -ForegroundColor Red
         Write-Host "Please ensure tray_monitor.ps1 exists in the same directory." -ForegroundColor Yellow
     }
     exit
@@ -51,9 +51,9 @@ if ($RemoveStartup) {
 
     if (Test-Path $startupShortcut) {
         Remove-Item $startupShortcut -Force
-        Write-Host "✅ Removed from startup: $startupShortcut" -ForegroundColor Green
+        Write-Host "Removed from startup: $startupShortcut" -ForegroundColor Green
     } else {
-        Write-Host "⚠️  Startup shortcut not found." -ForegroundColor Yellow
+        Write-Host "Startup shortcut not found." -ForegroundColor Yellow
     }
     exit
 }
