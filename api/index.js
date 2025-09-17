@@ -221,7 +221,7 @@ async function handleLogout(req, res) {
 
 async function handleHeartbeat(req, res) {
   try {
-    const { serverId, username, cpu, memory, status, sessionId } = req.body;
+    const { serverId, username, status, sessionId } = req.body;
 
     if (!serverId || !username) {
       return res.status(400).json({ error: 'Missing serverId or username' });
@@ -250,8 +250,6 @@ async function handleHeartbeat(req, res) {
          loginTime: existingSession ? JSON.parse(existingSession).loginTime : now,
          lastHeartbeat: now,
          status: status || 'active',
-         cpu: cpu,
-         memory: memory,
          heartbeatCount: existingSession ? (JSON.parse(existingSession).heartbeatCount || 0) + 1 : 1,
          lastUpdate: new Date().toISOString(),
          sessionDuration: Math.floor((now - (existingSession ? JSON.parse(existingSession).loginTime : now)) / 1000) // Duration in seconds

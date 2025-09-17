@@ -44,21 +44,7 @@ $script:RetryCount = 0
 # MaxRetries is now configurable via param
 $script:HeartbeatCount = 0
 
-function Get-SystemInfo {
-    try {
-        $cpu = (Get-Counter "\Processor(_Total)\% Processor Time").CounterSamples[0].CookedValue
-        $memory = [math]::Round((Get-Counter "\Memory\Available MBytes").CounterSamples[0].CookedValue)
-        return @{
-            cpu = [math]::Round($cpu, 2)
-            memory = [math]::Round($memory)
-        }
-    } catch {
-        return @{
-            cpu = 0
-            memory = 0
-        }
-    }
-}
+# Removed Get-SystemInfo function - no system resource monitoring needed
 
 function Get-ChicagoTime {
     try {
@@ -163,15 +149,14 @@ function Send-Heartbeat {
     try {
         $username = $env:USERNAME
         $computerName = $env:COMPUTERNAME
-        $systemInfo = Get-SystemInfo
+        # Removed system info collection
         
         $heartbeatData = @{
             action = "heartbeat"
             serverId = $computerName
             username = $username
             sessionId = $script:SessionId
-            cpu = $systemInfo.cpu
-            memory = $systemInfo.memory
+            # Removed CPU and memory data collection
             status = "active"
             timestamp = [long]([DateTimeOffset]::Now.ToUnixTimeSeconds())
         }

@@ -583,15 +583,13 @@
             <div class="table-container">
               <table>
                 <thead>
-                  <tr>
-                    <th>Server</th>
-                    <th>User</th>
-                    <th>CPU</th>
-                    <th>Memory</th>
-                    <th>Last Heartbeat</th>
-                    <th>Status</th>
-                    <th>Duration</th>
-                  </tr>
+                <tr>
+                  <th>Server</th>
+                  <th>User</th>
+                  <th>Last Heartbeat</th>
+                  <th>Status</th>
+                  <th>Duration</th>
+                </tr>
                 </thead>
                 <tbody id="rows"></tbody>
               </table>
@@ -629,16 +627,6 @@
     const el = (id) => document.getElementById(id);
     let timer = null;
 
-    function fmtBytes(v){
-      if(v==null) return '';
-      const kb = v/1024;
-      if(kb < 1024) return kb.toFixed(1)+' KB';
-      const mb = kb/1024;
-      if(mb < 1024) return mb.toFixed(1)+' MB';
-      const gb = mb/1024;
-      return gb.toFixed(2)+' GB';
-    }
-    function fmtPct(v){ if(v==null) return ''; return Number(v).toFixed(0)+'%'; }
     function fmtTime(ms){ const d=new Date(ms); return d.toLocaleString(); }
     function fmtDur(sec){ if(!sec&&sec!==0) return ''; const h=Math.floor(sec/3600), m=Math.floor((sec%3600)/60), s=sec%60; return (h? h+'h ':'')+ (m? m+'m ':'') + s+'s'; }
 
@@ -688,8 +676,6 @@
         tr.innerHTML = `
           <td>${s.serverId||'N/A'}</td>
           <td>${s.username||'Unknown'}</td>
-          <td>${fmtPct(s.cpu)}</td>
-          <td>${fmtBytes(s.memory)}</td>
           <td>${fmtTime(s.lastHeartbeat||0)}</td>
           <td><span class="status ${s.status==='active'?'active':'inactive'}">${s.status||'unknown'}</span></td>
           <td>${fmtDur(s.sessionDuration)}</td>
@@ -777,9 +763,13 @@
         console.log('Fetching data for serverId:', serverId);
         const data = await fetchAll(serverId);
         console.log('API response:', data);
+
+        const sessions = flatten(data);
+
         renderStats(data);
         updateServerFilter(data);
-        renderRows(flatten(data));
+        renderRows(sessions);
+
         el('raw').textContent = JSON.stringify(data, null, 2);
       } catch (error) {
         console.error('Refresh error:', error);
