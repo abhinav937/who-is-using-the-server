@@ -1,5 +1,5 @@
 @echo off
-echo Starting Server Monitor (User Level)...
+echo Starting Session Monitor (Tray Mode)...
 echo.
 
 REM Check if PowerShell is available
@@ -10,17 +10,14 @@ if errorlevel 1 (
     exit /b 1
 )
 
-REM Run the PowerShell script
-powershell -ExecutionPolicy Bypass -File "%~dp0api_monitor.ps1" -Mode auto -Interval 30
+echo Starting monitor in background (tray icon will appear)...
+echo Press Ctrl+C to stop or close this window.
+echo.
 
-REM Check exit code
-if errorlevel 1 (
-    echo.
-    echo Server Monitor exited with errors.
-    echo Check the logs above for details.
-) else (
-    echo.
-    echo Server Monitor stopped gracefully.
-)
+REM Run the PowerShell script in hidden mode
+powershell -ExecutionPolicy Bypass -File "%~dp0api_monitor.ps1"
 
+echo.
+echo Monitor stopped.
+echo.
 pause 

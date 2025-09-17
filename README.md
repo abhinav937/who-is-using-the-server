@@ -17,7 +17,11 @@ This system monitors server usage by tracking user sessions through heartbeat si
 - **Automatic Logout Detection**: Detect abrupt disconnections after 30 seconds
 - **Teams Notifications**: Send login/logout alerts to Microsoft Teams
 - **Heartbeat Monitoring**: Continuous session validation
-- **Easy Installation**: One-click setup scripts for Windows
+- **System Tray Integration**: Runs hidden with tray icon for status/control
+- **Hassle-free Installation**: One-click setup with auto-start on login
+- **No Admin Required**: Works with standard user privileges
+- **Elegant Management**: Single script handles install/uninstall/status
+- **Survives Logoff**: Monitor persists through Windows logoff/restart
 - **Cross-platform API**: Works with any system that can make HTTP requests
 
 ## Setup Instructions
@@ -62,21 +66,26 @@ This system monitors server usage by tracking user sessions through heartbeat si
 
 1. **Download the monitoring scripts** to your local machine
 
-2. **Configure settings** in `config.env`:
+2. **Configure settings** in `config.env` (optional):
    ```env
    API_URL=https://your-app.vercel.app/api
    HEARTBEAT_INTERVAL=30
-   LOG_FILE=api_monitor.log
    ```
 
-3. **Run the installer:**
-   - **PowerShell**: Right-click `install.ps1` → "Run with PowerShell"
-   - **Batch**: Double-click `install.bat`
+3. **Run the elegant installer:**
+   ```batch
+   # Install and start monitoring
+   .\install.bat
+
+   # Or use PowerShell directly for more options
+   .\setup.ps1 -Install -ApiUrl "https://your-app.vercel.app/api" -CheckInterval 20
+   ```
 
 4. **The installer will:**
-   - Create a startup script in your Windows Startup folder
-   - Configure automatic monitoring on system startup
-   - Set up logging and session management
+   - Install the monitor to auto-start on login (runs hidden)
+   - Create a system tray icon for status/control
+   - Set up automatic login/heartbeat/logout notifications
+   - No admin privileges required!
 
 ## Usage
 
@@ -90,28 +99,39 @@ Once installed, the system automatically:
 
 ### Manual Control
 
-You can also run the monitoring script manually:
+Use the elegant setup script for all operations:
 
 ```powershell
-# Start monitoring
-.\api_monitor.ps1
+# Install and start monitoring
+.\setup.ps1 -Install
 
-# Custom API URL and interval
-.\api_monitor.ps1 -ApiUrl "https://your-api.vercel.app/api" -Interval 20
+# Start monitor manually (without installing)
+.\setup.ps1 -Start
 
-# Different modes
-.\api_monitor.ps1 -Mode "login-only"    # Only send login notification
-.\api_monitor.ps1 -Mode "heartbeat-only" # Only send heartbeats
+# Stop monitor
+.\setup.ps1 -Stop
+
+# Check status
+.\setup.ps1 -Status
+
+# Uninstall everything
+.\setup.ps1 -Uninstall
+
+# Custom installation
+.\setup.ps1 -Install -ApiUrl "https://your-api.vercel.app/api" -CheckInterval 20
 ```
 
 ### Batch Script Options
 
 ```batch
-# Run with custom settings
-run_monitor.bat
+# Quick install
+install.bat
 
-# Uninstall the monitoring system
+# Quick uninstall
 uninstall.bat
+
+# Manual start
+run_monitor.bat
 ```
 
 ## API Endpoints
@@ -146,19 +166,17 @@ uninstall.bat
 server-monitor-api/
 ├── api/
 │   └── index.js              # Main Vercel API handler
-├── .github/
-│   └── workflows/
-│       └── check-logouts.yml # GitHub Actions for backup monitoring
-├── api_monitor.ps1           # PowerShell monitoring script
-├── install.ps1              # PowerShell installer
-├── install.bat              # Batch installer
-├── run_monitor.bat          # Batch runner
-├── uninstall.ps1            # PowerShell uninstaller
-├── uninstall.bat            # Batch uninstaller
-├── config.env               # Configuration file
-├── package.json             # Node.js dependencies
-├── vercel.json              # Vercel deployment config
-└── README.md                # This file
+├── api_monitor.ps1           # Advanced tray monitor (runs hidden)
+├── setup.ps1                 # Elegant setup script (install/uninstall/status)
+├── install.bat               # Quick install batch file
+├── uninstall.bat             # Quick uninstall batch file
+├── run_monitor.bat           # Manual start batch file
+├── config.env                # Configuration file
+├── dashboard.html            # Web dashboard
+├── dashboard.css             # Dashboard styling
+├── package.json              # Node.js dependencies
+├── vercel.json               # Vercel deployment config
+└── README.md                 # This file
 ```
 
 ## Configuration
