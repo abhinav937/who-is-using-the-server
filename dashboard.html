@@ -2,71 +2,617 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="viewport" content="width=device-width,initial-scale=1,shrink-to-fit=no">
+  <meta name="theme-color" content="#1f2937">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Server Dashboard">
   <title>Server Sessions Dashboard</title>
   <style>
-    :root { color-scheme: light dark; }
-    body { font-family: -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 16px; }
-    header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
-    h1 { font-size: 20px; margin: 0; }
-    .controls { display: flex; gap: 8px; align-items: center; }
-    select, input, button { padding: 6px 10px; font-size: 14px; }
-    .grid { display: grid; grid-template-columns: 1fr; gap: 16px; }
-    .card { border: 1px solid rgba(0,0,0,.1); border-radius: 10px; padding: 12px; background: rgba(255,255,255,.02); }
-    table { width: 100%; border-collapse: collapse; }
-    th, td { padding: 8px; text-align: left; border-bottom: 1px solid rgba(0,0,0,.08); font-size: 13px; }
-    th { background: rgba(0,0,0,.04); position: sticky; top: 0; }
-    .status { display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; border-radius: 999px; font-size: 12px; }
-    .status.active { background: rgba(16,185,129,.15); color: #10b981; }
-    .status.inactive { background: rgba(239,68,68,.15); color: #ef4444; }
-    .muted { color: #666; font-size: 12px; }
-    .summary { display: flex; gap: 16px; flex-wrap: wrap; }
-    .pill { padding: 4px 10px; background: rgba(0,0,0,.06); border-radius: 999px; font-size: 12px; }
-    .nowrap { white-space: nowrap; }
-    .right { text-align: right; }
-    @media (min-width: 900px) { .grid { grid-template-columns: 1fr 1fr; } }
+    :root {
+      --primary: #1f2937;
+      --primary-dark: #111827;
+      --success: #059669;
+      --warning: #d97706;
+      --danger: #dc2626;
+      --gray-50: #f9fafb;
+      --gray-100: #f3f4f6;
+      --gray-200: #e5e7eb;
+      --gray-300: #d1d5db;
+      --gray-400: #9ca3af;
+      --gray-500: #6b7280;
+      --gray-600: #4b5563;
+      --gray-700: #374151;
+      --gray-800: #1f2937;
+      --gray-900: #111827;
+      --border-radius: 6px;
+      --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+      --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      margin: 0;
+      padding: 0;
+      background: var(--gray-50);
+      min-height: 100vh;
+      color: var(--gray-800);
+      line-height: 1.5;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    header {
+      background: white;
+      border: 1px solid var(--gray-200);
+      border-radius: var(--border-radius);
+      padding: 16px 20px;
+      margin-bottom: 20px;
+      box-shadow: var(--shadow-sm);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+
+    h1 {
+      font-size: 24px;
+      font-weight: 600;
+      margin: 0;
+      color: var(--gray-900);
+    }
+
+    .controls {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .control-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .control-label {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--gray-700);
+      white-space: nowrap;
+    }
+
+    select, button {
+      padding: 8px 12px;
+      border: 2px solid var(--gray-200);
+      border-radius: var(--border-radius);
+      font-size: 14px;
+      font-weight: 500;
+      transition: all 0.2s ease;
+      background: white;
+      cursor: pointer;
+    }
+
+    select:focus, button:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+
+    select:hover, button:hover {
+      border-color: var(--primary);
+      transform: translateY(-1px);
+    }
+
+    button {
+      background: var(--primary);
+      color: white;
+      border-color: var(--primary);
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    button:hover {
+      background: var(--primary-dark);
+      border-color: var(--primary-dark);
+    }
+
+    button.secondary {
+      background: white;
+      color: var(--gray-700);
+      border-color: var(--gray-300);
+    }
+
+    button.secondary:hover {
+      background: var(--gray-50);
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .stat-card {
+      background: white;
+      border: 1px solid var(--gray-200);
+      border-radius: var(--border-radius);
+      padding: 16px;
+      box-shadow: var(--shadow-sm);
+      text-align: center;
+    }
+
+    .stat-value {
+      font-size: 24px;
+      font-weight: 600;
+      color: var(--gray-900);
+      margin-bottom: 4px;
+    }
+
+    .stat-label {
+      font-size: 12px;
+      color: var(--gray-600);
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .main-content {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 20px;
+    }
+
+    .card {
+      background: white;
+      border: 1px solid var(--gray-200);
+      border-radius: var(--border-radius);
+      box-shadow: var(--shadow-sm);
+      overflow: hidden;
+    }
+
+    .card-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--gray-100);
+      background: var(--gray-50);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .card-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--gray-900);
+      margin: 0;
+    }
+
+    .card-content {
+      padding: 0 20px 20px 20px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+
+    thead {
+      background: var(--gray-50);
+    }
+
+    th {
+      padding: 12px 16px;
+      text-align: left;
+      font-weight: 600;
+      color: var(--gray-700);
+      border-bottom: 1px solid var(--gray-200);
+    }
+
+    td {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--gray-100);
+      color: var(--gray-800);
+    }
+
+    tbody tr:hover {
+      background: var(--gray-50);
+    }
+
+    .status {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .status.active {
+      background: var(--success);
+      color: white;
+    }
+
+    .status.inactive {
+      background: var(--danger);
+      color: white;
+    }
+
+    .raw-data-container {
+      background: var(--gray-900);
+      color: var(--gray-100);
+      padding: 16px;
+      border-radius: var(--border-radius);
+      font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+      font-size: 12px;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      margin: 0;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--gray-500);
+    }
+
+    .empty-state h3 {
+      margin: 0 0 8px 0;
+      color: var(--gray-700);
+    }
+
+    .empty-state p {
+      margin: 0;
+      font-size: 14px;
+    }
+
+    /* Tablet Styles */
+    @media (max-width: 1024px) and (min-width: 769px) {
+      .container {
+        padding: 16px;
+        max-width: 100%;
+      }
+
+      .main-content {
+        grid-template-columns: 1fr;
+        gap: 20px;
+      }
+
+      .stats-grid {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 10px;
+      }
+    }
+
+    /* Mobile Styles */
+    @media (max-width: 768px) {
+      .container {
+        padding: 12px;
+        max-width: 100%;
+      }
+
+      header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 16px;
+        padding: 12px;
+        margin-bottom: 16px;
+      }
+
+      h1 {
+        font-size: 20px;
+        text-align: center;
+        margin-bottom: 8px;
+      }
+
+      .controls {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        grid-template-rows: auto auto;
+        gap: 12px;
+        width: 100%;
+      }
+
+      .control-group:first-child {
+        grid-column: 1;
+        grid-row: 1;
+      }
+
+      .control-group:nth-child(2) {
+        grid-column: 2;
+        grid-row: 1;
+      }
+
+      .control-group {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+
+      .control-label {
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--gray-700);
+      }
+
+      select, button {
+        padding: 10px 8px;
+        font-size: 14px;
+        width: 100%;
+        box-sizing: border-box;
+      }
+
+      button {
+        grid-column: span 2;
+        margin-top: 8px;
+        min-height: 44px; /* iOS touch target minimum */
+        touch-action: manipulation;
+      }
+
+      /* Improve touch targets for all interactive elements */
+      select, button, .toggleRaw {
+        min-height: 44px;
+        touch-action: manipulation;
+      }
+
+      /* Better spacing for mobile */
+      .control-group {
+        margin-bottom: 8px;
+      }
+
+      .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 8px;
+        margin-bottom: 16px;
+      }
+
+      .stat-card {
+        padding: 12px 8px;
+        text-align: center;
+      }
+
+      .stat-value {
+        font-size: 18px;
+        margin-bottom: 2px;
+      }
+
+      .stat-label {
+        font-size: 11px;
+        letter-spacing: 0.3px;
+      }
+
+      .main-content {
+        grid-template-columns: 1fr;
+        gap: 16px;
+      }
+
+      .card {
+        margin-bottom: 16px;
+      }
+
+      .card-header {
+        padding: 12px 16px;
+      }
+
+      .card-title {
+        font-size: 15px;
+      }
+
+      .card-content {
+        padding: 0 16px 16px 16px;
+      }
+
+      /* Mobile table improvements */
+      .table-container {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        margin: -16px -16px 0 -16px;
+        padding: 16px;
+      }
+
+      table {
+        min-width: 600px;
+        font-size: 13px;
+      }
+
+      th, td {
+        padding: 10px 8px;
+        white-space: nowrap;
+      }
+
+      th {
+        font-size: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+
+      /* Status badges on mobile */
+      .status {
+        padding: 3px 6px;
+        font-size: 11px;
+        border-radius: 3px;
+      }
+
+      /* Empty state on mobile */
+      .empty-state {
+        padding: 32px 16px;
+        text-align: center;
+      }
+
+      .empty-state h3 {
+        font-size: 16px;
+        margin-bottom: 8px;
+      }
+
+      .empty-state p {
+        font-size: 13px;
+        color: var(--gray-500);
+      }
+
+      /* Raw data on mobile */
+      .raw-data-container {
+        font-size: 11px;
+        padding: 12px;
+        margin: -16px -16px 0 -16px;
+        border-radius: 0;
+      }
+    }
+
+    /* Small phone optimizations */
+    @media (max-width: 480px) {
+      .container {
+        padding: 8px;
+      }
+
+      header {
+        padding: 8px;
+        margin-bottom: 12px;
+      }
+
+      h1 {
+        font-size: 18px;
+      }
+
+      .controls {
+        grid-template-columns: 1fr;
+        gap: 8px;
+      }
+
+      .control-group:first-child,
+      .control-group:nth-child(2) {
+        grid-column: 1;
+      }
+
+      button {
+        grid-column: 1;
+        margin-top: 4px;
+      }
+
+      .stats-grid {
+        grid-template-columns: 1fr;
+        gap: 6px;
+      }
+
+      .stat-card {
+        padding: 10px 6px;
+      }
+
+      .stat-value {
+        font-size: 16px;
+      }
+
+      .stat-label {
+        font-size: 10px;
+      }
+
+      .card-header {
+        padding: 10px 12px;
+      }
+
+      .card-content {
+        padding: 0 12px 12px 12px;
+      }
+
+      .table-container {
+        margin: -12px -12px 0 -12px;
+        padding: 12px;
+      }
+
+      .empty-state {
+        padding: 24px 12px;
+      }
+
+      .raw-data-container {
+        margin: -12px -12px 0 -12px;
+        padding: 8px;
+      }
+    }
+
+    @media (min-width: 1200px) {
+      .main-content {
+        grid-template-columns: 2fr 1fr;
+      }
+    }
   </style>
 </head>
 <body>
-  <header>
-    <h1>Server Sessions Dashboard</h1>
-    <div class="controls">
-      <label class="muted">Server:</label>
-      <select id="serverFilter"></select>
-      <label class="muted">Refresh:</label>
-      <select id="refreshMs">
-        <option value="0">Off</option>
-        <option value="5000">5s</option>
-        <option value="10000" selected>10s</option>
-        <option value="30000">30s</option>
-        <option value="60000">1m</option>
-      </select>
-      <button id="refreshBtn">Refresh Now</button>
-    </div>
-  </header>
+  <div class="container">
+    <header>
+      <h1>Server Sessions Dashboard</h1>
+      <div class="controls">
+        <div class="control-group">
+          <span class="control-label">Server:</span>
+          <select id="serverFilter">
+            <option value="">All servers</option>
+          </select>
+        </div>
+        <div class="control-group">
+          <span class="control-label">Refresh:</span>
+          <select id="refreshMs">
+            <option value="0">Off</option>
+            <option value="5000">5s</option>
+            <option value="10000" selected>10s</option>
+            <option value="30000">30s</option>
+            <option value="60000">1m</option>
+          </select>
+        </div>
+        <button id="refreshBtn">Refresh Now</button>
+      </div>
+    </header>
 
-  <div class="summary" id="summary"></div>
+    <div class="stats-grid" id="statsGrid"></div>
 
-  <div class="grid">
-    <div class="card">
-      <table>
-        <thead>
-          <tr>
-            <th>Server</th>
-            <th>User</th>
-            <th class="right">CPU</th>
-            <th class="right">Memory</th>
-            <th>Last Heartbeat</th>
-            <th>Status</th>
-            <th class="right">Duration</th>
-          </tr>
-        </thead>
-        <tbody id="rows"></tbody>
-      </table>
-    </div>
-    <div class="card">
-      <h3 style="margin-top:0">Raw Data</h3>
-      <pre id="raw" style="white-space:pre-wrap; font-size:12px; margin:0"></pre>
+    <div class="main-content">
+      <div class="card">
+        <div class="card-header">
+          <h2 class="card-title">Active Sessions</h2>
+        </div>
+        <div class="card-content">
+          <div id="sessionsTable">
+            <div class="table-container">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Server</th>
+                    <th>User</th>
+                    <th>CPU</th>
+                    <th>Memory</th>
+                    <th>Last Heartbeat</th>
+                    <th>Status</th>
+                    <th>Duration</th>
+                  </tr>
+                </thead>
+                <tbody id="rows"></tbody>
+              </table>
+            </div>
+            <div class="empty-state" id="emptyState" style="display: none;">
+              <h3>No Active Sessions</h3>
+              <p>Waiting for users to log in to servers...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h2 class="card-title">Debug Info</h2>
+          <button id="toggleRaw" class="secondary">Show Raw</button>
+        </div>
+        <div class="card-content">
+          <div id="raw" class="raw-data-container" style="display: none;"></div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -83,7 +629,15 @@
     const el = (id) => document.getElementById(id);
     let timer = null;
 
-    function fmtBytes(v){ if(v==null) return ''; const mb = v/1024/1024; return mb.toFixed(1)+' MB'; }
+    function fmtBytes(v){
+      if(v==null) return '';
+      const kb = v/1024;
+      if(kb < 1024) return kb.toFixed(1)+' KB';
+      const mb = kb/1024;
+      if(mb < 1024) return mb.toFixed(1)+' MB';
+      const gb = mb/1024;
+      return gb.toFixed(2)+' GB';
+    }
     function fmtPct(v){ if(v==null) return ''; return Number(v).toFixed(0)+'%'; }
     function fmtTime(ms){ const d=new Date(ms); return d.toLocaleString(); }
     function fmtDur(sec){ if(!sec&&sec!==0) return ''; const h=Math.floor(sec/3600), m=Math.floor((sec%3600)/60), s=sec%60; return (h? h+'h ':'')+ (m? m+'m ':'') + s+'s'; }
@@ -114,38 +668,68 @@
 
     function renderRows(sessions){
       const tbody = el('rows');
+      const table = el('sessionsTable');
+      const emptyState = el('emptyState');
+
       tbody.innerHTML = '';
       sessions.sort((a,b)=> (a.serverId||'').localeCompare(b.serverId||'') || (a.username||'').localeCompare(b.username||''));
+
+      if(sessions.length === 0){
+        table.style.display = 'none';
+        emptyState.style.display = 'block';
+        return;
+      }
+
+      table.style.display = 'block';
+      emptyState.style.display = 'none';
+
       for(const s of sessions){
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td class="nowrap">${s.serverId||''}</td>
-          <td class="nowrap">${s.username||''}</td>
-          <td class="right">${fmtPct(s.cpu)}</td>
-          <td class="right">${fmtBytes(s.memory)}</td>
-          <td class="nowrap">${fmtTime(s.lastHeartbeat||0)}</td>
-          <td><span class="status ${s.status==='active'?'active':'inactive'}">${s.status||''}</span></td>
-          <td class="right">${fmtDur(s.sessionDuration)}</td>
+          <td>${s.serverId||'N/A'}</td>
+          <td>${s.username||'Unknown'}</td>
+          <td>${fmtPct(s.cpu)}</td>
+          <td>${fmtBytes(s.memory)}</td>
+          <td>${fmtTime(s.lastHeartbeat||0)}</td>
+          <td><span class="status ${s.status==='active'?'active':'inactive'}">${s.status||'unknown'}</span></td>
+          <td>${fmtDur(s.sessionDuration)}</td>
         `;
         tbody.appendChild(tr);
       }
     }
 
-    function renderSummary(data){
-      const box = el('summary');
-      box.innerHTML = '';
+    function renderStats(data){
+      const grid = el('statsGrid');
+      grid.innerHTML = '';
+
       if(data.scope === 'server'){
-        box.innerHTML = `
-          <span class="pill">Scope: ${data.serverId}</span>
-          <span class="pill">Active sessions: ${data.totalSessions}</span>
+        const sessions = data.totalSessions || 0;
+        grid.innerHTML = `
+          <div class="stat-card">
+            <div class="stat-value">${sessions}</div>
+            <div class="stat-label">Active Sessions</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value">${data.serverId}</div>
+            <div class="stat-label">Server</div>
+          </div>
         `;
       } else if (data.scope === 'all'){
         const totalServers = data.totalServers ?? (data.servers? data.servers.length : 0);
         const totalSessions = data.totalSessions ?? 0;
-        box.innerHTML = `
-          <span class="pill">Scope: all servers</span>
-          <span class="pill">Servers: ${totalServers}</span>
-          <span class="pill">Active sessions: ${totalSessions}</span>
+        grid.innerHTML = `
+          <div class="stat-card">
+            <div class="stat-value">${totalSessions}</div>
+            <div class="stat-label">Total Sessions</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value">${totalServers}</div>
+            <div class="stat-label">Active Servers</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value">${totalServers > 0 ? Math.round(totalSessions / totalServers * 10) / 10 : 0}</div>
+            <div class="stat-label">Avg per Server</div>
+          </div>
         `;
       }
     }
@@ -153,7 +737,7 @@
     function updateServerFilter(data){
       const sel = el('serverFilter');
       const prev = sel.value;
-      
+
       // Get servers from current data
       let servers = [];
       if(data.scope==='all' && Array.isArray(data.servers)) {
@@ -161,22 +745,30 @@
       } else if(data.serverId) {
         servers = [data.serverId];
       }
-      
+
       // Also check if we have any sessions that might have server info
       if(data.scope==='all' && Array.isArray(data.servers)) {
         const sessionServers = data.servers.flatMap(s => s.activeSessions.map(session => session.serverId)).filter(Boolean);
         servers = [...new Set([...servers, ...sessionServers])];
       }
-      
-      const set = new Set(['', ...servers]);
+
+      // Clear existing options except the default
+      const defaultOption = sel.querySelector('option[value=""]');
       sel.innerHTML = '';
-      for(const id of set){
+      sel.appendChild(defaultOption);
+
+      // Add server options
+      servers.forEach(serverId => {
         const opt = document.createElement('option');
-        opt.value = id;
-        opt.textContent = id? id : 'All servers';
+        opt.value = serverId;
+        opt.textContent = serverId;
         sel.appendChild(opt);
+      });
+
+      // Restore previous selection if it still exists
+      if(servers.includes(prev)) {
+        sel.value = prev;
       }
-      if(set.has(prev)) sel.value = prev;
     }
 
     async function refresh(){
@@ -185,7 +777,7 @@
         console.log('Fetching data for serverId:', serverId);
         const data = await fetchAll(serverId);
         console.log('API response:', data);
-        renderSummary(data);
+        renderStats(data);
         updateServerFilter(data);
         renderRows(flatten(data));
         el('raw').textContent = JSON.stringify(data, null, 2);
@@ -203,6 +795,17 @@
         if(ms>0){ timer = setInterval(()=> refresh().catch(console.error), ms); }
       });
       el('serverFilter').addEventListener('change', ()=> refresh().catch(console.error));
+      el('toggleRaw').addEventListener('click', ()=>{
+        const raw = el('raw');
+        const btn = el('toggleRaw');
+        if(raw.style.display === 'none'){
+          raw.style.display = 'block';
+          btn.textContent = 'Hide Raw';
+        } else {
+          raw.style.display = 'none';
+          btn.textContent = 'Show Raw';
+        }
+      });
       // default auto-refresh value
       const ms = parseInt(el('refreshMs').value, 10);
       if(ms>0){ timer = setInterval(()=> refresh().catch(console.error), ms); }
