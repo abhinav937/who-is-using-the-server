@@ -135,6 +135,7 @@ function Start-Monitor {
         $process = Start-Process powershell.exe -ArgumentList "-WindowStyle Hidden", "-ExecutionPolicy Bypass", "-File", "`"$scriptPath`"", "-ApiUrl", "`"$ApiUrl`"", "-CheckInterval", $CheckInterval -NoNewWindow -PassThru
         Write-Host "SUCCESS: Monitor started (PID: $($process.Id))" -ForegroundColor Green
         Write-Host "Check the system tray for the monitor icon." -ForegroundColor Cyan
+        Start-Sleep -Seconds 1  # Give it a moment to start properly
     } catch {
         Write-Host "ERROR: Failed to start monitor: $($_.Exception.Message)" -ForegroundColor Red
     }

@@ -11,13 +11,11 @@ if errorlevel 1 (
 )
 
 echo Starting monitor in background (tray icon will appear)...
-echo Press Ctrl+C to stop or close this window.
+echo This window will close automatically.
+echo Use the system tray icon to control the monitor.
 echo.
 
-REM Run the PowerShell script in hidden mode
-powershell -ExecutionPolicy Bypass -File "%~dp0api_monitor.ps1"
+REM Run the PowerShell script in background
+start /B powershell -ExecutionPolicy Bypass -File "%~dp0api_monitor.ps1"
 
-echo.
-echo Monitor stopped.
-echo.
-pause 
+echo Monitor started successfully. 

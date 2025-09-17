@@ -103,88 +103,133 @@ function Stop-MonitorJob {
 }
 
 function Show-Status {
-    $statusMessage = "Session Monitor Status`n"
+    try {
+        $statusMessage = "Session Monitor Status`n"
 
-    if ($script:monitorJob) {
-        $jobStatus = $script:monitorJob.State
-        $statusMessage += "Job Status: $jobStatus`n"
-        $statusMessage += "Check Interval: $script:CheckInterval seconds`n"
-        $statusMessage += "API URL: $($script:ApiUrl -replace '^https?://([^/]+).*', '$1')`n"
+        if ($script:monitorJob) {
+            $jobStatus = $script:monitorJob.State
+            $statusMessage += "Job Status: $jobStatus`n"
+            $statusMessage += "Check Interval: $script:CheckInterval seconds`n"
+            $statusMessage += "API URL: $($script:ApiUrl -replace '^https?://([^/]+).*', '$1')`n"
 
-        # Get current timestamp
-        $currentTime = Get-Date -Format "HH:mm:ss"
-        $statusMessage += "Last Update: $currentTime`n"
+            # Get current timestamp
+            $currentTime = Get-Date -Format "HH:mm:ss"
+            $statusMessage += "Last Update: $currentTime`n"
 
-        # Show active users count (UI thread quick check)
-        try {
-            $users = @()
-            $rdp = qwinsta.exe 2>$null
-            if ($LASTEXITCODE -eq 0 -and $rdp) {
-                $users = $rdp | Select-String "Active|Conn" | ForEach-Object {
-                    $m = [regex]::Match($_.Line, "\s+(\S+)\s+\d+\s+(Active|Conn)")
-                    if ($m.Success) { $m.Groups[1].Value }
-                } | Select-Object -Unique
+            # Show active users count (UI thread quick check)
+            try {
+                $users = @()
+                $rdp = qwinsta.exe 2>$null
+                if ($LASTEXITCODE -eq 0 -and $rdp) {
+                    $users = $rdp | Select-String "Active|Conn" | ForEach-Object {
+                        $m = [regex]::Match($_.Line, "\s+(\S+)\s+\d+\s+(Active|Conn)")
+                        if ($m.Success) { $m.Groups[1].Value }
+                    } | Select-Object -Unique
+                }
+                $statusMessage += "Active Users: $($users.Count)"
+            } catch { $statusMessage += "Active Users: Unknown" }
+
+            Update-TrayStatus -status "Running"
+            if ($script:trayIcon) {
+                $script:trayIcon.ShowBalloonTip(5000, "Session Monitor - Running", $statusMessage, [System.Windows.Forms.ToolTipIcon]::Info)
             }
-            $statusMessage += "Active Users: $($users.Count)"
-        } catch { $statusMessage += "Active Users: Unknown" }
-
-        $script:trayIcon.ShowBalloonTip(5000, "Session Monitor - Running", $statusMessage, [System.Windows.Forms.ToolTipIcon]::Info)
-    } else {
-        $statusMessage += "Monitor: STOPPED`n"
-        $statusMessage += "Click 'Restart Monitor' to start"
-        $script:trayIcon.ShowBalloonTip(5000, "Session Monitor - Stopped", $statusMessage, [System.Windows.Forms.ToolTipIcon]::Warning)
+        } else {
+            $statusMessage += "Monitor: STOPPED`n"
+            $statusMessage += "Click 'Restart Monitor' to start"
+            Update-TrayStatus -status "Stopped"
+            if ($script:trayIcon) {
+                $script:trayIcon.ShowBalloonTip(5000, "Session Monitor - Stopped", $statusMessage, [System.Windows.Forms.ToolTipIcon]::Warning)
+            }
+        }
+    } catch {
+        Write-Host "ERROR: Failed to show status: $($_.Exception.Message)" -ForegroundColor Red
     }
 }
 
 function Create-TrayIcon {
-    # Create context menu
-    $script:contextMenu = New-Object System.Windows.Forms.ContextMenuStrip
+    try {
+        # Create context menu
+        $script:contextMenu = New-Object System.Windows.Forms.ContextMenuStrip
 
-    $statusItem = $script:contextMenu.Items.Add("Show Status")
-    $statusItem.Add_Click({ Show-Status }) | Out-Null
+        $statusItem = $script:contextMenu.Items.Add("Show Status")
+        $statusItem.Add_Click({ Show-Status }) | Out-Null
 
-    $script:contextMenu.Items.Add("-") | Out-Null  # Separator
+        $script:contextMenu.Items.Add("-") | Out-Null  # Separator
 
-    $restartItem = $script:contextMenu.Items.Add("Restart Monitor")
-    $restartItem.Add_Click({
-        Stop-MonitorJob
-        Start-Sleep -Seconds 2
-        Start-MonitorJob
-        $trayIcon.ShowBalloonTip(2000, "Session Monitor", "Monitor restarted", [System.Windows.Forms.ToolTipIcon]::Info)
-    }) | Out-Null
+        $restartItem = $script:contextMenu.Items.Add("Restart Monitor")
+        $restartItem.Add_Click({
+            try {
+                Stop-MonitorJob
+                Start-Sleep -Seconds 2
+                Start-MonitorJob
+                if ($script:trayIcon) {
+                    $script:trayIcon.ShowBalloonTip(2000, "Session Monitor", "Monitor restarted", [System.Windows.Forms.ToolTipIcon]::Info)
+                }
+            } catch {
+                if ($script:trayIcon) {
+                    $script:trayIcon.ShowBalloonTip(3000, "Session Monitor", "Restart failed: $($_.Exception.Message)", [System.Windows.Forms.ToolTipIcon]::Error)
+                }
+            }
+        }) | Out-Null
 
-    $script:contextMenu.Items.Add("-") | Out-Null  # Separator
+        $script:contextMenu.Items.Add("-") | Out-Null  # Separator
 
-    $exitItem = $script:contextMenu.Items.Add("Exit")
-    $exitItem.Add_Click({
-        $result = [System.Windows.Forms.MessageBox]::Show(
-            "Stop the Session Monitor?",
-            "Confirm Exit",
-            [System.Windows.Forms.MessageBoxButtons]::YesNo,
-            [System.Windows.Forms.MessageBoxIcon]::Question
-        )
+        $exitItem = $script:contextMenu.Items.Add("Exit")
+        $exitItem.Add_Click({
+            $result = [System.Windows.Forms.MessageBox]::Show(
+                "Stop the Session Monitor?",
+                "Confirm Exit",
+                [System.Windows.Forms.MessageBoxButtons]::YesNo,
+                [System.Windows.Forms.MessageBoxIcon]::Question
+            )
 
-        if ($result -eq [System.Windows.Forms.DialogResult]::Yes) {
-            Stop-MonitorJob
-            $script:mainForm.Close()
+            if ($result -eq [System.Windows.Forms.DialogResult]::Yes) {
+                Stop-MonitorJob
+                $script:mainForm.Close()
+            }
+        }) | Out-Null
+
+        # Create tray icon with error handling
+        $script:trayIcon = New-Object System.Windows.Forms.NotifyIcon
+
+        # Use a more appropriate icon
+        try {
+            $script:trayIcon.Icon = [System.Drawing.SystemIcons]::Information
+        } catch {
+            # Fallback if Information icon fails
+            $script:trayIcon.Icon = [System.Drawing.SystemIcons]::Application
         }
-    }) | Out-Null
 
-    # Create tray icon
-    $script:trayIcon = New-Object System.Windows.Forms.NotifyIcon
-    $script:trayIcon.Icon = [System.Drawing.SystemIcons]::Information
-    $script:trayIcon.Text = "Session Monitor - Running"
-    $script:trayIcon.ContextMenuStrip = $script:contextMenu
-    $script:trayIcon.Visible = $true
+        $script:trayIcon.Text = "Session Monitor - Running"
+        $script:trayIcon.ContextMenuStrip = $script:contextMenu
+        $script:trayIcon.Visible = $true
 
-    # Single-click to show status
-    $script:trayIcon.Add_Click({ Show-Status })
+        # Single-click to show status
+        $script:trayIcon.Add_Click({ Show-Status })
 
-    # Double-click also shows status (for compatibility)
-    $script:trayIcon.Add_DoubleClick({ Show-Status })
+        # Double-click also shows status (for compatibility)
+        $script:trayIcon.Add_DoubleClick({ Show-Status })
 
-    # Show startup notification
-    $script:trayIcon.ShowBalloonTip(3000, "Session Monitor", "Monitor started in system tray", [System.Windows.Forms.ToolTipIcon]::Info)
+        # Show startup notification
+        $script:trayIcon.ShowBalloonTip(3000, "Session Monitor", "Monitor started in system tray", [System.Windows.Forms.ToolTipIcon]::Info)
+
+    } catch {
+        Write-Host "ERROR: Failed to create tray icon: $($_.Exception.Message)" -ForegroundColor Red
+        throw
+    }
+}
+
+function Update-TrayStatus {
+    param([string]$status = "Running")
+
+    if ($script:trayIcon) {
+        try {
+            $script:trayIcon.Text = "Session Monitor - $status"
+        } catch {
+            # Tray might be disposed, recreate it
+            Create-TrayIcon
+        }
+    }
 }
 
 function Install-StartupShortcut {
@@ -230,8 +275,44 @@ try {
     # Start the monitor job
     Start-MonitorJob
 
+    # Set up a timer to keep tray active and responsive
+    $timer = New-Object System.Windows.Forms.Timer
+    $timer.Interval = 30000  # Check every 30 seconds
+    $timer.Add_Tick({
+        try {
+            # Update tray status periodically
+            if ($script:monitorJob -and $script:monitorJob.State -eq 'Running') {
+                Update-TrayStatus -status "Running"
+            } elseif ($script:monitorJob) {
+                Update-TrayStatus -status "Job $($script:monitorJob.State)"
+            } else {
+                Update-TrayStatus -status "Stopped"
+            }
+
+            # Ensure tray icon is still visible
+            if ($script:trayIcon -and -not $script:trayIcon.Visible) {
+                $script:trayIcon.Visible = $true
+            }
+        } catch {
+            # If tray is broken, try to recreate it
+            try {
+                if ($script:trayIcon) {
+                    $script:trayIcon.Dispose()
+                }
+                Create-TrayIcon
+            } catch {
+                Write-Host "CRITICAL: Unable to maintain tray icon: $($_.Exception.Message)" -ForegroundColor Red
+            }
+        }
+    })
+    $timer.Start()
+
     # Run the application
     [System.Windows.Forms.Application]::Run($script:mainForm)
+
+    # Clean up timer
+    $timer.Stop()
+    $timer.Dispose()
 
 } catch {
     Write-Host "Critical error: $($_.Exception.Message)" -ForegroundColor Red
