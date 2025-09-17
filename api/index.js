@@ -311,8 +311,7 @@ async function handleStatus(req, res) {
   try {
     const { serverId } = req.query;
     
-    const now = new Date();
-    console.log(`Status check at ${now.toLocaleString('en-US', { timeZone: 'America/Chicago' })} CDT / ${now.toISOString()} UTC / ${now.toString()} Local`);
+    console.log(`Status check at ${new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' })} CDT`);
     
     const redis = await getRedisClient();
     
