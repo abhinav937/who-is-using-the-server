@@ -16,7 +16,7 @@ echo Use the system tray icon to control the monitor.
 echo.
 
 REM Launch monitor completely hidden - batch file will exit immediately
-start /B powershell -WindowStyle Hidden -ExecutionPolicy Bypass -File "%~dp0api_monitor.ps1" >nul 2>&1
+start "" /B powershell -WindowStyle Hidden -ExecutionPolicy Bypass -Command "& { & '%~dp0api_monitor.ps1' }" >nul 2>&1
 
 echo Monitor started successfully.
 

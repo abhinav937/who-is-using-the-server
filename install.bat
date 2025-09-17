@@ -16,8 +16,11 @@ if errorlevel 1 (
 echo Installing Session Monitor with tray icon...
 echo.
 
-REM Run the PowerShell setup script in background
-start /B powershell -ExecutionPolicy Bypass -File "%~dp0setup.ps1" -Install
+REM Run the PowerShell setup script completely hidden - batch file will exit immediately
+start "" /B powershell -WindowStyle Hidden -ExecutionPolicy Bypass -Command "& { & '%~dp0setup.ps1' -Install }" >nul 2>&1
 
 echo Installation started. Check system tray for the monitor icon.
-echo This window will close automatically. 
+echo This window will close automatically.
+
+REM Exit immediately
+exit 
