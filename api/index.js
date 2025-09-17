@@ -431,8 +431,9 @@ async function checkForLogouts(redis) {
             await redis.del(activeKey);
             await redis.sRem(`server:${active.serverId}`, sessionKey);
             
-                         // Don't send logout notification here - it will be sent as combined message if server becomes free
-             console.log(`Logout detected for: ${active.username} on ${active.serverId}`);
+            const sessionDuration = Math.floor((Date.now() - session.loginTime) / 1000);
+            sendTeamsNotification(createLogoutMessage(active.username, active.serverId, 'timeout', sessionDuration));
+            console.log(`Logout notification sent for: ${active.username} on ${active.serverId}`);
           } else {
             // Clean up orphaned active key
             await redis.del(activeKey);
@@ -466,8 +467,9 @@ async function checkForLogouts(redis) {
             
             console.log(`Detected abrupt logout for user: ${username} on server: ${serverId}`);
             
-                         // Don't send logout notification here - it will be sent as combined message if server becomes free
-             console.log(`Abrupt logout detected for: ${username} on ${serverId}`);
+            const sessionDuration = Math.floor((Date.now() - (loggedOffUsers.find(u => u.username === username && u.serverId === serverId)?.loginTime || Date.now())) / 1000);
+            sendTeamsNotification(createLogoutMessage(username, serverId, 'abrupt_disconnection', sessionDuration));
+            console.log(`Logout notification sent for: ${username} on ${serverId}`);
             
             loggedOffUsers.push({
               username: username,
@@ -550,10 +552,22 @@ async function handleCheckLogouts(req, res) {
     try {
       await checkForLogouts(redis);
       
-      res.status(200).json({ 
-        success: true, 
+      const chicagoTime = new Date().toLocaleString('en-US', {
+        timeZone: 'America/Chicago',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
+      });
+
+      res.status(200).json({
+        success: true,
         message: 'Logout check completed',
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        chicagoTime: chicagoTime + ' CDT'
       });
       
     } catch (redisError) {
