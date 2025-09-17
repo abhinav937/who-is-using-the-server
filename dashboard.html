@@ -73,7 +73,7 @@
   <script>
     // Construct API URL based on current location
     let apiUrl;
-    if (location.pathname === '/' || location.pathname === '/dashboard') {
+    if (location.pathname === '/' || location.pathname === '/dashboard' || location.pathname === '/dashboard.html') {
       apiUrl = '/api/index.js';
     } else {
       const apiBase = (location.pathname.endsWith('/')) ? location.pathname.slice(0, -1) : location.pathname;
@@ -213,5 +213,3 @@
   </script>
 </body>
 </html>
-
-
