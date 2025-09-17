@@ -91,6 +91,7 @@ function Start-MonitorJob {
     }
 
     $script:monitorJob = Start-Job -ScriptBlock $scriptBlock -ArgumentList $ApiUrl, $CheckInterval
+    Update-TrayStatus -status "Running"
 }
 
 function Stop-MonitorJob {
@@ -99,6 +100,7 @@ function Stop-MonitorJob {
         Stop-Job $script:monitorJob
         Remove-Job $script:monitorJob
         $script:monitorJob = $null
+        Update-TrayStatus -status "Stopped"
     }
 }
 
@@ -280,13 +282,33 @@ try {
     $timer.Interval = 30000  # Check every 30 seconds
     $timer.Add_Tick({
         try {
-            # Update tray status periodically
-            if ($script:monitorJob -and $script:monitorJob.State -eq 'Running') {
-                Update-TrayStatus -status "Running"
-            } elseif ($script:monitorJob) {
-                Update-TrayStatus -status "Job $($script:monitorJob.State)"
+            # Check monitor job health
+            if ($script:monitorJob) {
+                $jobState = $script:monitorJob.State
+                switch ($jobState) {
+                    'Running' {
+                        Update-TrayStatus -status "Running"
+                    }
+                    'Completed' {
+                        Update-TrayStatus -status "Completed"
+                        # Job completed normally, but we want it to keep running
+                        Write-Host "WARNING: Monitor job completed unexpectedly, restarting..." -ForegroundColor Yellow
+                        Start-MonitorJob
+                    }
+                    'Failed' {
+                        Update-TrayStatus -status "Failed"
+                        Write-Host "ERROR: Monitor job failed, restarting..." -ForegroundColor Red
+                        Start-MonitorJob
+                    }
+                    'Stopped' {
+                        Update-TrayStatus -status "Stopped"
+                    }
+                    default {
+                        Update-TrayStatus -status "$jobState"
+                    }
+                }
             } else {
-                Update-TrayStatus -status "Stopped"
+                Update-TrayStatus -status "No Job"
             }
 
             # Ensure tray icon is still visible
@@ -300,6 +322,7 @@ try {
                     $script:trayIcon.Dispose()
                 }
                 Create-TrayIcon
+                Update-TrayStatus -status "Recovered"
             } catch {
                 Write-Host "CRITICAL: Unable to maintain tray icon: $($_.Exception.Message)" -ForegroundColor Red
             }
@@ -317,6 +340,11 @@ try {
 } catch {
     Write-Host "Critical error: $($_.Exception.Message)" -ForegroundColor Red
 } finally {
+    # Clean up resources
+    if ($timer) {
+        $timer.Stop()
+        $timer.Dispose()
+    }
     Stop-MonitorJob
     if ($script:trayIcon) {
         $script:trayIcon.Dispose()
