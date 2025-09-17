@@ -6,9 +6,10 @@ This folder contains experimental/test scripts for alternative session monitorin
 
 ### `test_session_monitor.ps1`
 **Main test script** - RDP-only session monitoring approach that:
-- **NO HEARTBEATS** - Only sends login/logout notifications
-- Works without administrator privileges
 - Detects active users via RDP sessions only (qwinsta.exe)
+- Sends login/logout notifications + silent keep-alive messages
+- Keep-alive prevents session expiration (sessions expire after 3 minutes if not refreshed)
+- Works without administrator privileges
 - Maps "console" sessions to actual usernames (prevents duplicate reporting)
 - Checks every 20 seconds instead of continuous monitoring
 
@@ -53,7 +54,7 @@ This folder contains experimental/test scripts for alternative session monitorin
 | **Admin Required** | No | No |
 | **Resource Usage** | High (always running) | Low (checks only) |
 | **Detection Method** | Heartbeat-based | RDP sessions only (qwinsta.exe) |
-| **Heartbeat Usage** | Yes (continuous) | **No heartbeats** (login/logout only) |
+| **Heartbeat Usage** | Yes (continuous) | Silent keep-alive (every 20s) |
 | **Persistence** | Manual startup | Can auto-start on login |
 
 ## Status: Experimental

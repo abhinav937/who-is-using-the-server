@@ -1,6 +1,7 @@
 # Test Session Monitor - RDP-Only Approach (No Admin Required)
-# This script detects active users using ONLY RDP session queries - NO HEARTBEATS
-# Uses qwinsta.exe to check for active RDP/console sessions and sends login/logout only
+# This script detects active users using ONLY RDP session queries
+# Uses qwinsta.exe to check for active RDP/console sessions
+# Sends login/logout notifications + silent keep-alive to prevent session expiration
 #
 # To run persistently:
 # 1. .\run_test_monitor.ps1 -InstallStartup  # Auto-start on login
@@ -18,6 +19,16 @@ Write-Host "API URL: $ApiUrl" -ForegroundColor Yellow
 Write-Host "Check Interval: $CheckInterval seconds" -ForegroundColor Yellow
 Write-Host "Press Ctrl+C to stop" -ForegroundColor Green
 Write-Host ""
+
+# Test API connectivity
+Write-Host "Testing API connectivity..." -ForegroundColor Cyan
+try {
+    $testResponse = Invoke-RestMethod -Uri "$ApiUrl" -Method GET -TimeoutSec 10
+    Write-Host "✅ API is reachable" -ForegroundColor Green
+} catch {
+    Write-Host "❌ API test failed: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host "   Make sure the API URL is correct and the service is running" -ForegroundColor Yellow
+}
 
 # Load configuration
 $configPath = Join-Path $PSScriptRoot "config.env"
@@ -37,6 +48,10 @@ if ($API_URL) { $ApiUrl = $API_URL }
 # Global variables
 $script:LastDetectedUsers = @()
 $script:ServerId = $env:COMPUTERNAME
+
+Write-Host "Server ID: $script:ServerId" -ForegroundColor Yellow
+Write-Host "Current User: $env:USERNAME" -ForegroundColor Yellow
+Write-Host ""
 
 function Get-ChicagoTime {
     try {
@@ -164,7 +179,37 @@ function Send-LoginNotification {
     }
 }
 
-# Removed Send-HeartbeatNotification function - this approach doesn't use heartbeats
+function Send-KeepAliveNotification {
+    param([string]$username)
+
+    try {
+        # Send keep-alive to prevent session expiration (not called heartbeat)
+        $keepAliveData = @{
+            action = "heartbeat"  # Reuses heartbeat action to extend session TTL
+            serverId = $script:ServerId
+            username = $username
+            status = "active"
+        }
+
+        $jsonData = $keepAliveData | ConvertTo-Json -Compress
+        Write-Host "  [DEBUG] Sending keep-alive for $username to $ApiUrl" -ForegroundColor Gray
+
+        $response = Invoke-RestMethod -Uri $ApiUrl -Method POST -Body $jsonData -ContentType "application/json" -TimeoutSec $RequestTimeoutSec
+
+        if ($response.success) {
+            Write-Host "  [OK] Keep-alive sent for: $username" -ForegroundColor Green
+        } else {
+            Write-Host "  [WARN] Keep-alive response not successful for: $username" -ForegroundColor Yellow
+            Write-Host "  [DEBUG] Response: $($response | ConvertTo-Json)" -ForegroundColor Gray
+        }
+
+    } catch {
+        Write-Host "  [ERROR] Keep-alive failed for $username : $($_.Exception.Message)" -ForegroundColor Red
+        Write-Host "  [DEBUG] URL: $ApiUrl" -ForegroundColor Gray
+        Write-Host "  [DEBUG] Data: $jsonData" -ForegroundColor Gray
+    }
+}
+
 function Send-LogoutNotification {
     param([string]$username)
 
@@ -210,7 +255,10 @@ try {
                 Send-LoginNotification -username $user
             }
 
-            # No heartbeats - we rely on login/logout detection only
+            # Send keep-alive for active users (prevents session expiration)
+            foreach ($user in $currentUsers) {
+                Send-KeepAliveNotification -username $user
+            }
 
             # Check for logouts
             $loggedOutUsers = $script:LastDetectedUsers | Where-Object { $_ -notin $currentUsers }
