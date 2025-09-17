@@ -22,8 +22,8 @@ set "SCRIPT_NAME=server_monitor.bat"
 
 REM Create the startup script
 echo @echo off > "%STARTUP_FOLDER%\%SCRIPT_NAME%"
-echo cd /d "%~dp0" >> "%STARTUP_FOLDER%\%SCRIPT_NAME%"
-echo powershell -ExecutionPolicy Bypass -File "%~dp0api_monitor.ps1" >> "%STARTUP_FOLDER%\%SCRIPT_NAME%"
+echo cd /d "%CD%" >> "%STARTUP_FOLDER%\%SCRIPT_NAME%"
+echo powershell -ExecutionPolicy Bypass -WindowStyle Hidden -File "%CD%\api_monitor.ps1" >> "%STARTUP_FOLDER%\%SCRIPT_NAME%"
 
 echo Creating desktop shortcut...
 echo.

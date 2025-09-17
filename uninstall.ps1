@@ -49,6 +49,32 @@ try {
     Write-Host "- No running processes found" -ForegroundColor Yellow
 }
 
+Write-Host "" 
+Write-Host "Removing autorun (Run key) and scheduled tasks..." -ForegroundColor Yellow
+
+try {
+    # Remove HKCU Run key
+    $runKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run"
+    $runName = "ServerMonitor"
+    if (Get-ItemProperty -Path $runKey -Name $runName -ErrorAction SilentlyContinue) {
+        Remove-ItemProperty -Path $runKey -Name $runName -Force
+        Write-Host "- Removed HKCU Run entry" -ForegroundColor Green
+    }
+} catch {
+    Write-Host "- Failed to remove Run entry (may not exist)" -ForegroundColor Yellow
+}
+
+try {
+    # Remove Scheduled Tasks
+    $taskNameLogon = "ServerMonitor-AtLogon"
+    $taskNameReconnect = "ServerMonitor-OnReconnect"
+    Unregister-ScheduledTask -TaskName $taskNameLogon -Confirm:$false -ErrorAction SilentlyContinue
+    Unregister-ScheduledTask -TaskName $taskNameReconnect -Confirm:$false -ErrorAction SilentlyContinue
+    Write-Host "- Removed scheduled tasks (if present)" -ForegroundColor Green
+} catch {
+    Write-Host "- Scheduled tasks not found or removal failed" -ForegroundColor Yellow
+}
+
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Green
 Write-Host "Uninstall completed successfully!" -ForegroundColor Green

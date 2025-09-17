@@ -32,6 +32,15 @@ echo Stopping any running monitor processes...
 powershell -Command "Get-Process | Where-Object {$_.ProcessName -eq 'powershell' -and $_.CommandLine -like '*api_monitor.ps1*'} | Stop-Process -Force" >nul 2>&1
 
 echo.
+echo Removing autorun (Run key) and scheduled tasks...
+REM Remove HKCU Run entry
+powershell -Command "Remove-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name 'ServerMonitor' -Force -ErrorAction SilentlyContinue" >nul 2>&1
+
+REM Remove scheduled tasks
+schtasks /Delete /TN "ServerMonitor-AtLogon" /F >nul 2>&1
+schtasks /Delete /TN "ServerMonitor-OnReconnect" /F >nul 2>&1
+
+echo.
 echo ========================================
 echo Uninstall completed successfully!
 echo ========================================

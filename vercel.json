@@ -4,5 +4,9 @@
     "api/index.js": {
       "maxDuration": 10
     }
-  }
+  },
+  "routes": [
+    { "src": "^/$", "dest": "/api/index.html" },
+    { "src": "^/dashboard$", "dest": "/api/index.html" }
+  ]
 } 

@@ -4,7 +4,9 @@
 param(
     [string]$ApiUrl = "https://who-is-using-the-server.vercel.app/api",
     [int]$Interval = 20,
-    [string]$Mode = "auto"  # auto, login-only, heartbeat-only
+    [string]$Mode = "auto",  # auto, login-only, heartbeat-only
+    [int]$MaxRetries = 10,
+    [int]$RequestTimeoutSec = 15
 )
 
 # Load configuration
@@ -23,11 +25,14 @@ if (Test-Path $configPath) {
 if ($API_URL) { $ApiUrl = $API_URL }
 if ($HEARTBEAT_INTERVAL) { $Interval = [int]$HEARTBEAT_INTERVAL }
 if ($MONITOR_MODE) { $Mode = $MONITOR_MODE }
+if ($MAX_RETRIES) { $MaxRetries = [int]$MAX_RETRIES }
+if ($REQUEST_TIMEOUT_SEC) { $RequestTimeoutSec = [int]$REQUEST_TIMEOUT_SEC }
 
 Write-Host "Server Monitor - User-Level Session Management" -ForegroundColor Cyan
 Write-Host "API URL: $ApiUrl" -ForegroundColor Yellow
 Write-Host "Interval: $Interval seconds" -ForegroundColor Yellow
 Write-Host "Mode: $Mode" -ForegroundColor Yellow
+Write-Host "MaxRetries: $MaxRetries, RequestTimeoutSec: $RequestTimeoutSec" -ForegroundColor Yellow
 Write-Host "Press Ctrl+C to stop gracefully" -ForegroundColor Green
 Write-Host ""
 
@@ -36,7 +41,7 @@ $script:SessionId = $null
 $script:IsLoggedIn = $false
 $script:LastHeartbeat = 0
 $script:RetryCount = 0
-$script:MaxRetries = 3
+# MaxRetries is now configurable via param
 $script:HeartbeatCount = 0
 
 function Get-SystemInfo {
@@ -87,7 +92,7 @@ function Send-Login {
         
         $jsonData = $loginData | ConvertTo-Json -Compress
         
-        $response = Invoke-RestMethod -Uri $ApiUrl -Method POST -Body $jsonData -ContentType "application/json" -TimeoutSec 10
+        $response = Invoke-RestMethod -Uri $ApiUrl -Method POST -Body $jsonData -ContentType "application/json" -TimeoutSec $RequestTimeoutSec
         
         $timestamp = Get-ChicagoTime
         Write-Host "[$timestamp] Login sent: $username on $computerName" -ForegroundColor Green
@@ -104,9 +109,13 @@ function Send-Login {
         Write-Host "[$timestamp] [ERROR] Login failed: $($_.Exception.Message)" -ForegroundColor Red
         $script:RetryCount++
         
-        if ($script:RetryCount -ge $script:MaxRetries) {
-            Write-Host "  [FATAL] Max retries reached, exiting..." -ForegroundColor Red
-            exit 1
+        if ($script:RetryCount -ge $MaxRetries) {
+            Write-Host "  [WARN] Max retries reached for login, will keep trying in background..." -ForegroundColor Yellow
+            Start-Sleep -Seconds ([Math]::Min(60, [Math]::Pow(2, [Math]::Min($script:RetryCount, 6))))
+            $script:RetryCount = 0
+        } else {
+            $delay = [int][Math]::Min(30, [Math]::Pow(2, $script:RetryCount))
+            Start-Sleep -Seconds $delay
         }
     }
 }
@@ -131,7 +140,7 @@ function Send-Logout {
         
         $jsonData = $logoutData | ConvertTo-Json -Compress
         
-        $response = Invoke-RestMethod -Uri $ApiUrl -Method POST -Body $jsonData -ContentType "application/json" -TimeoutSec 10
+        $response = Invoke-RestMethod -Uri $ApiUrl -Method POST -Body $jsonData -ContentType "application/json" -TimeoutSec $RequestTimeoutSec
         
         $timestamp = Get-ChicagoTime
         Write-Host "[$timestamp] Logout sent: $username on $computerName" -ForegroundColor Yellow
@@ -169,24 +178,31 @@ function Send-Heartbeat {
         
         $jsonData = $heartbeatData | ConvertTo-Json -Compress
         
-        $response = Invoke-RestMethod -Uri $ApiUrl -Method POST -Body $jsonData -ContentType "application/json" -TimeoutSec 10
+        $response = Invoke-RestMethod -Uri $ApiUrl -Method POST -Body $jsonData -ContentType "application/json" -TimeoutSec $RequestTimeoutSec
         
         if ($response.success) {
             $script:LastHeartbeat = Get-Date
             $script:RetryCount = 0
             $script:HeartbeatCount++
+            if (($script:HeartbeatCount % 10) -eq 0) {
+                $timestamp = Get-ChicagoTime
+                Write-Host "[$timestamp] Heartbeats sent so far: $($script:HeartbeatCount)" -ForegroundColor Cyan
+            }
+        } else {
+            # Treat non-success responses as transient and retry with backoff
+            $script:RetryCount++
+            $delay = [int][Math]::Min(60, [Math]::Pow(2, $script:RetryCount))
+            Write-Host "  [INFO] Heartbeat non-success, retry #$($script:RetryCount) in $delay seconds" -ForegroundColor Yellow
+            Start-Sleep -Seconds $delay
         }
         
     } catch {
         $timestamp = Get-ChicagoTime
         Write-Host "[$timestamp] [ERROR] Heartbeat failed: $($_.Exception.Message)" -ForegroundColor Red
         $script:RetryCount++
-        
-        if ($script:RetryCount -ge $script:MaxRetries) {
-            Write-Host "  [FATAL] Max retries reached, attempting logout..." -ForegroundColor Red
-            Send-Logout
-            exit 1
-        }
+        $delay = [int][Math]::Min(60, [Math]::Pow(2, $script:RetryCount))
+        Write-Host "  [INFO] Retry #$($script:RetryCount) in $delay seconds" -ForegroundColor Yellow
+        Start-Sleep -Seconds $delay
     }
 }
 
@@ -210,8 +226,7 @@ try {
         Send-Login
         
         if (-not $script:IsLoggedIn) {
-            Write-Host "Failed to login, exiting..." -ForegroundColor Red
-            exit 1
+            Write-Host "Login not yet successful, continuing and will retry with backoff..." -ForegroundColor Yellow
         }
     }
     
@@ -235,11 +250,11 @@ try {
             $timestamp = Get-ChicagoTime
             Write-Host "[$timestamp] [ERROR] Main loop error: $($_.Exception.Message)" -ForegroundColor Red
             
-            # Attempt logout on critical errors
-            if ($script:IsLoggedIn) {
-                Send-Logout
-            }
-            break
+            # Do not force logout or exit on transient loop errors
+            $script:RetryCount++
+            $delay = [int][Math]::Min(60, [Math]::Pow(2, $script:RetryCount))
+            Write-Host "  [INFO] Loop error, retry #$($script:RetryCount) in $delay seconds" -ForegroundColor Yellow
+            Start-Sleep -Seconds $delay
         }
     }
     

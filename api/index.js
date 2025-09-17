@@ -1,6 +1,10 @@
 // Vercel API for server monitoring
 import { createClient } from 'redis';
 
+// Configurable TTLs and timeouts to reduce flakiness
+const SESSION_TTL_SEC = parseInt(process.env.SESSION_TTL_SEC || '180', 10); // Redis key expiry for sessions/active markers
+const LOGOUT_TIMEOUT_SEC = parseInt(process.env.LOGOUT_TIMEOUT_SEC || '120', 10); // Inactivity threshold before considering logged out
+
 export default async function handler(req, res) {
   // Enable CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -91,7 +95,7 @@ async function handleLogin(req, res) {
           status: 'active',
           heartbeatCount: (session.heartbeatCount || 0) + 1,
           lastUpdate: new Date().toISOString()
-        }), { EX: 90 }); // 90 seconds expiry for consistency
+        }), { EX: SESSION_TTL_SEC });
         
         res.status(200).json({ 
           success: true, 
@@ -110,7 +114,7 @@ async function handleLogin(req, res) {
           status: 'active'
         };
 
-        await redis.set(sessionKey, JSON.stringify(newSession), { EX: 90 });
+        await redis.set(sessionKey, JSON.stringify(newSession), { EX: SESSION_TTL_SEC });
         await redis.sAdd(serverKey, sessionKey);
 
         // Send login notification
@@ -253,7 +257,7 @@ async function handleHeartbeat(req, res) {
          sessionDuration: Math.floor((now - (existingSession ? JSON.parse(existingSession).loginTime : now)) / 1000) // Duration in seconds
        };
       
-      await redis.set(sessionKey, JSON.stringify(sessionData), { EX: 90 }); // 90 seconds expiry for faster detection
+      await redis.set(sessionKey, JSON.stringify(sessionData), { EX: SESSION_TTL_SEC });
       
       // Also store a separate active session marker for better tracking
       await redis.set(activeKey, JSON.stringify({
@@ -261,12 +265,12 @@ async function handleHeartbeat(req, res) {
         serverId,
         lastHeartbeat: now,
         status: 'active'
-      }), { EX: 90 });
+      }), { EX: SESSION_TTL_SEC });
 
       // Add to server's active sessions
       await redis.sAdd(serverKey, sessionKey);
 
-      // Send Teams notification for NEW sessions only
+      // Send Teams notification for NEW sessions only (debounced by checking recent login time)
       if (isNewSession) {
         console.log(`NEW SESSION DETECTED: ${username} on ${serverId}`);
         sendTeamsNotification(createLoginMessage(username, serverId));
@@ -327,19 +331,42 @@ async function handleStatus(req, res) {
         console.log(`Active sessions: ${activeSessions.length}`);
 
         res.status(200).json({
+          scope: 'server',
+          serverId,
           activeSessions,
           totalSessions: activeSessions.length
         });
       } else {
+        // Return all servers with their active sessions
+        const serverKeys = await redis.keys('server:*');
+        const servers = [];
+        for (const key of serverKeys) {
+          const id = key.replace('server:', '');
+          const sessionKeys = await redis.sMembers(key);
+          const activeSessions = [];
+          for (const sessionKey of sessionKeys) {
+            const sessionData = await redis.get(sessionKey);
+            if (sessionData) {
+              activeSessions.push(JSON.parse(sessionData));
+            }
+          }
+          servers.push({ serverId: id, activeSessions, totalSessions: activeSessions.length });
+        }
         res.status(200).json({
-          activeSessions: [],
-          totalSessions: 0
+          scope: 'all',
+          servers,
+          totalServers: servers.length,
+          totalSessions: servers.reduce((sum, s) => sum + s.totalSessions, 0)
         });
       }
     } catch (redisError) {
       console.error('Redis error in status:', redisError);
       res.status(200).json({
-        activeSessions: [],
+        scope: serverId ? 'server' : 'all',
+        servers: serverId ? undefined : [],
+        serverId: serverId || undefined,
+        activeSessions: serverId ? [] : undefined,
+        totalServers: serverId ? undefined : 0,
         totalSessions: 0,
         error: 'Redis not available'
       });
@@ -355,7 +382,7 @@ async function handleStatus(req, res) {
 
 async function checkForLogouts(redis) {
   const now = Date.now();
-  const timeout = 30 * 1000; // 30 seconds timeout for faster detection
+  const timeout = LOGOUT_TIMEOUT_SEC * 1000;
 
   console.log(`Checking for logouts at ${new Date().toLocaleString()}`);
 
