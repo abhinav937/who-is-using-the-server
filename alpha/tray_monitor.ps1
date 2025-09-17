@@ -22,46 +22,70 @@ function Start-MonitorJob {
 
     $scriptBlock = {
         param($ApiUrl, $CheckInterval)
+        
+        # Local state for the background job
+        $script:ServerId = $env:COMPUTERNAME
+        $script:LastDetectedUsers = @()
 
-        # Import the monitor functions
-        $monitorScript = Join-Path $PSScriptRoot "test_session_monitor.ps1"
-        if (Test-Path $monitorScript) {
-            # Source the monitor script (this is a simplified version)
-            . $monitorScript
-
-            # Run the monitoring logic in a loop
-            $script:LastDetectedUsers = @()
-            $script:ServerId = $env:COMPUTERNAME
-
-            while ($true) {
-                try {
-                    # Get active users
-                    $currentUsers = Get-ActiveUsers
-
-                    # Check for new logins
-                    $newUsers = $currentUsers | Where-Object { $_ -notin $script:LastDetectedUsers }
-                    foreach ($user in $newUsers) {
-                        Send-LoginNotification -username $user
+        function Get-ActiveUsers {
+            $users = @()
+            try {
+                $rdpOutput = qwinsta.exe 2>$null
+                if ($LASTEXITCODE -eq 0 -and $rdpOutput) {
+                    $active = $rdpOutput | Select-String "Active|Conn" | ForEach-Object {
+                        $m = [regex]::Match($_.Line, "\s+(\S+)\s+\d+\s+(Active|Conn)")
+                        if ($m.Success) {
+                            $u = $m.Groups[1].Value
+                            if ($u -eq 'console') { $u = $env:USERNAME }
+                            $u
+                        }
                     }
-
-                    # Send keep-alive for active users
-                    foreach ($user in $currentUsers) {
-                        Send-KeepAliveNotification -username $user
-                    }
-
-                    # Check for logouts
-                    $loggedOutUsers = $script:LastDetectedUsers | Where-Object { $_ -notin $currentUsers }
-                    foreach ($user in $loggedOutUsers) {
-                        Send-LogoutNotification -username $user
-                    }
-
-                    $script:LastDetectedUsers = $currentUsers
-
-                    Start-Sleep -Seconds $CheckInterval
-                } catch {
-                    Write-Host "Monitor job error: $($_.Exception.Message)" -ForegroundColor Red
-                    Start-Sleep -Seconds $CheckInterval
+                    $users = $active | Where-Object { $_ } | Select-Object -Unique
                 }
+            } catch {}
+            return $users
+        }
+
+        function Send-LoginNotification {
+            param([string]$username)
+            try {
+                $body = @{ action = 'login'; serverId = $script:ServerId; username = $username } | ConvertTo-Json -Compress
+                Invoke-RestMethod -Uri $ApiUrl -Method POST -Body $body -ContentType 'application/json' -TimeoutSec 15 | Out-Null
+            } catch {}
+        }
+
+        function Send-KeepAliveNotification {
+            param([string]$username)
+            try {
+                $body = @{ action = 'heartbeat'; serverId = $script:ServerId; username = $username; status = 'active' } | ConvertTo-Json -Compress
+                Invoke-RestMethod -Uri $ApiUrl -Method POST -Body $body -ContentType 'application/json' -TimeoutSec 15 | Out-Null
+            } catch {}
+        }
+
+        function Send-LogoutNotification {
+            param([string]$username)
+            try {
+                $body = @{ action = 'logout'; serverId = $script:ServerId; username = $username; reason = 'session_ended' } | ConvertTo-Json -Compress
+                Invoke-RestMethod -Uri $ApiUrl -Method POST -Body $body -ContentType 'application/json' -TimeoutSec 15 | Out-Null
+            } catch {}
+        }
+
+        while ($true) {
+            try {
+                $currentUsers = Get-ActiveUsers
+
+                $newUsers = $currentUsers | Where-Object { $_ -notin $script:LastDetectedUsers }
+                foreach ($u in $newUsers) { Send-LoginNotification -username $u }
+
+                foreach ($u in $currentUsers) { Send-KeepAliveNotification -username $u }
+
+                $loggedOut = $script:LastDetectedUsers | Where-Object { $_ -notin $currentUsers }
+                foreach ($u in $loggedOut) { Send-LogoutNotification -username $u }
+
+                $script:LastDetectedUsers = $currentUsers
+                Start-Sleep -Seconds $CheckInterval
+            } catch {
+                Start-Sleep -Seconds $CheckInterval
             }
         }
     }
@@ -91,13 +115,18 @@ function Show-Status {
         $currentTime = Get-Date -Format "HH:mm:ss"
         $statusMessage += "Last Update: $currentTime`n"
 
-        # Show active users count if available
+        # Show active users count (UI thread quick check)
         try {
-            $activeUsers = Get-ActiveUsers
-            $statusMessage += "Active Users: $($activeUsers.Count)"
-        } catch {
-            $statusMessage += "Active Users: Unknown"
-        }
+            $users = @()
+            $rdp = qwinsta.exe 2>$null
+            if ($LASTEXITCODE -eq 0 -and $rdp) {
+                $users = $rdp | Select-String "Active|Conn" | ForEach-Object {
+                    $m = [regex]::Match($_.Line, "\s+(\S+)\s+\d+\s+(Active|Conn)")
+                    if ($m.Success) { $m.Groups[1].Value }
+                } | Select-Object -Unique
+            }
+            $statusMessage += "Active Users: $($users.Count)"
+        } catch { $statusMessage += "Active Users: Unknown" }
 
         $script:trayIcon.ShowBalloonTip(5000, "Session Monitor - Running", $statusMessage, [System.Windows.Forms.ToolTipIcon]::Info)
     } else {
